@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIおばあ</title>
+</head>
+<body>
+  <h1>AIおばあ</h1>
+
+  <div id="chat" style="border:1px solid #ccc; padding:10px; height:300px; overflow:auto; margin-bottom:10px;"></div>
+
+  <input type="text" id="message" placeholder="話しかけてみる" style="width:60%;" />
+  <button id="send">送信</button>
+  <button id="reset">会話をリセット</button>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const messageInput = document.getElementById("message");
+    const sendButton = document.getElementById("send");
+    const resetButton = document.getElementById("reset");
+
+    function addMessage(sender, text) {
+      const p = document.createElement("p");
+      p.textContent = `${sender}: ${text}`;
+      chat.appendChild(p);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      addMessage("あなた", message);
+      messageInput.value = "";
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await response.json();
+        addMessage("おばあ", data.reply || "返事がうまく出なかったよ。");
+      } catch (error) {
+        addMessage("おばあ", "ちょっとつながりにくいみたいだよ。");
+        console.error(error);
+      }
+    }
+
+    async function resetChat() {
+      try {
+        await fetch("/reset", { method: "POST" });
+        chat.innerHTML = "";
+        addMessage("おばあ", "また最初から話そうかね。");
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    sendButton.addEventListener("click", sendMessage);
+    resetButton.addEventListener("click", resetChat);
+
+    messageInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        sendMessage();
+      }
+    });
+  </script>
+</body>
+</html>
