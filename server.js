@@ -198,9 +198,13 @@ function updateProfile(userId, text) {
   const name = (m1 && m1[1]) || (m2 && m2[1]) || (m3 && m3[1]);
   if (name) p.name = name.trim();
 
-  if (t.includes("好き")) {
-    p.likes.push(t.replace(/.*好き/, "").trim());
-    p.likes = p.likes.slice(-5);
+  const likeMatch = t.match(/(.+?)が好き/);
+  if (likeMatch && likeMatch[1]) {
+    const like = likeMatch[1].trim();
+    if (like && !p.likes.includes(like)) {
+      p.likes.push(like);
+      p.likes = p.likes.slice(-5);
+    }
   }
 }
 function setMode(userId, mode) {
