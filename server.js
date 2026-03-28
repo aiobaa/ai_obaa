@@ -481,6 +481,9 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
+app.get("/ping", (req, res) => {
+  res.send("ok");
+});
 app.listen(PORT, () => {
   console.log(`http://localhost:${PORT} で起動中`);
 });
