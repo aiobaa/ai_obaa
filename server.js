@@ -152,6 +152,7 @@ const PROMPTS = {
 
 const DEFAULT_MODE = "obaa";
 const userModes = new Map();
+const userProfiles = new Map();
 const userConversations = new Map();
 
 const MAX_MESSAGES = 16;
@@ -180,6 +181,28 @@ function getMode(userId) {
   return userModes.get(userId) || DEFAULT_MODE;
 }
 
+function getProfile(userId) {
+  if (!userProfiles.has(userId)) {
+    userProfiles.set(userId, { name: "", likes: [] });
+  }
+  return userProfiles.get(userId);
+}
+
+function updateProfile(userId, text) {
+  const p = getProfile(userId);
+  const t = String(text || "");
+
+  const m1 = t.match(/(?:俺|僕|私)は(.+?)です/);
+  const m2 = t.match(/名前は(.+?)です/);
+  const m3 = t.match(/(.+?)って呼んで/);
+  const name = (m1 && m1[1]) || (m2 && m2[1]) || (m3 && m3[1]);
+  if (name) p.name = name.trim();
+
+  if (t.includes("好き")) {
+    p.likes.push(t.replace(/.*好き/, "").trim());
+    p.likes = p.likes.slice(-5);
+  }
+}
 function setMode(userId, mode) {
   userModes.set(userId, mode);
 }
@@ -307,6 +330,7 @@ function buildModeQuickReply() {
 
 async function callOpenAI(userId, userInput) {
   const detectedMode = detectMode(userInput);
+  updateProfile(userId, userInput);
 
   if (detectedMode) {
     setMode(userId, detectedMode);
@@ -323,9 +347,13 @@ async function callOpenAI(userId, userInput) {
 
   const mode = getMode(userId);
   const systemPrompt = PROMPTS[mode] || PROMPTS[DEFAULT_MODE];
+  const p = getProfile(userId);
+  const profileText = p.name ? `相手の名前は${p.name}。` : "";
+  const likesText = p.likes.length ? `好きなもの: ${p.likes.join("、")}。` : "";
+
 
   let conversation = getConversation(userId);
-  conversation[0] = { role: "system", content: systemPrompt };
+  conversation[0] = { role: "system", content: systemPrompt + "\n" + profileText + "\n" + likesText };
 
   conversation.push({ role: "user", content: userInput });
   conversation = trimConversation(conversation);
