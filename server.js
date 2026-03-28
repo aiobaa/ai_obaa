@@ -9,6 +9,29 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const morningMessages = [
+  "おはよう。今日は無理せんでええよ。",
+  "おはよう。ひとつできたら十分だよ。"
+];
+const nightMessages = [
+  "今日もよう頑張ったねえ。ゆっくり休みなさい。",
+  "おつかれさま。今日はもうそれで十分よ。"
+];
+function pickRandomMessage(type) {
+  const list = type === "morning" ? morningMessages : nightMessages;
+  return list[Math.floor(Math.random() * list.length)];
+}
+app.get("/test-message", (req, res) => {
+  const type = req.query.type === "night" ? "night" : "morning";
+  const message = pickRandomMessage(type);
+  res.json({ message });
+});
+app.get("/push", (req, res) => {
+  const type = req.query.type === "night" ? "night" : "morning";
+  const message = pickRandomMessage(type);
+  console.log("PUSH:", message);
+  res.send(message);
+});
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
@@ -152,12 +175,11 @@ const PROMPTS = {
 
 const DEFAULT_MODE = "obaa";
 const userModes = new Map();
-const userProfiles = new Map();
 const userConversations = new Map();
 
 const MAX_MESSAGES = 16;
 const MAX_USERS = 200;
-const USER_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7日間
+const USER_TTL_MS = 1000 * 60 * 60 * 12; // 12時間
 
 function now() {
   return Date.now();
@@ -181,32 +203,6 @@ function getMode(userId) {
   return userModes.get(userId) || DEFAULT_MODE;
 }
 
-function getProfile(userId) {
-  if (!userProfiles.has(userId)) {
-    userProfiles.set(userId, { name: "", likes: [] });
-  }
-  return userProfiles.get(userId);
-}
-
-function updateProfile(userId, text) {
-  const p = getProfile(userId);
-  const t = String(text || "");
-
-  const m1 = t.match(/(?:俺|僕|私)は(.+?)です/);
-  const m2 = t.match(/名前は(.+?)です/);
-  const m3 = t.match(/(.+?)って呼んで/);
-  const name = (m1 && m1[1]) || (m2 && m2[1]) || (m3 && m3[1]);
-  if (name) p.name = name.trim();
-
-  const likeMatch = t.match(/(.+?)が好き/);
-  if (likeMatch && likeMatch[1]) {
-    const like = likeMatch[1].trim();
-    if (like && !p.likes.includes(like)) {
-      p.likes.push(like);
-      p.likes = p.likes.slice(-5);
-    }
-  }
-}
 function setMode(userId, mode) {
   userModes.set(userId, mode);
 }
@@ -334,7 +330,6 @@ function buildModeQuickReply() {
 
 async function callOpenAI(userId, userInput) {
   const detectedMode = detectMode(userInput);
-  updateProfile(userId, userInput);
 
   if (detectedMode) {
     setMode(userId, detectedMode);
@@ -351,13 +346,9 @@ async function callOpenAI(userId, userInput) {
 
   const mode = getMode(userId);
   const systemPrompt = PROMPTS[mode] || PROMPTS[DEFAULT_MODE];
-  const p = getProfile(userId);
-  const profileText = p.name ? `相手の名前は${p.name}。` : "";
-  const likesText = p.likes.length ? `好きなもの: ${p.likes.join("、")}。` : "";
-
 
   let conversation = getConversation(userId);
-  conversation[0] = { role: "system", content: systemPrompt + "\n" + profileText + "\n" + likesText };
+  conversation[0] = { role: "system", content: systemPrompt };
 
   conversation.push({ role: "user", content: userInput });
   conversation = trimConversation(conversation);
@@ -366,7 +357,6 @@ async function callOpenAI(userId, userInput) {
     model: "gpt-5.4",
     input: conversation,
   });
-
   let reply =
     response.output_text?.trim() ||
     "ごめん、ちょっとうまく言葉が出てこんかったよ。もういっぺん話してみて。";
