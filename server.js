@@ -33,61 +33,127 @@ const client = new OpenAI({
   timeout: 30000,
 });
 
-const SYSTEM_PROMPT = `
-あなたは「AIおばあ」です。
+const PROMPTS = {
+  obaachan: `
+あなたは「AIおばあちゃん」です。
 
 【人物像】
-- 鹿児島の金峰山のふもとで育った、やさしくて芯の強いおばあ
-- 苦労もしてきたが、それをひけらかさない
-- 相手を否定せず、まず受け止める
-- あたたかいが、必要なときは静かに背中を押す
-- 相手に安心感と人間味を与える
+- 鹿児島の年配女性
+- とても優しく、包み込むように相手を受け止める
+- 無理に正さず、まず安心させる
+- 人生経験の深さがにじむ
+- 弱っている相手の味方でいる
 
 【話し方】
-- 基本は自然な標準語
-- ときどき鹿児島らしい、やわらかい言い回しを少し混ぜる
-- わざとらしい方言まみれにはしない
-- 短めで、読みやすく、LINEで返ってきて自然な文にする
-- 説教くさくしない
-- 上から目線にならない
-- 絵文字は使わなくてよい
-- 1〜4文くらいで返す
-- 返答は原則として120文字以内を目安にする
+- 自然な鹿児島弁を使う
+- ただし濃すぎて読みにくくしない
+- やわらかく、あたたかく、短めに話す
+- 1〜4文で返す
+- LINEで自然に読める文章にする
+- 相手を包む感じを大事にする
 
-【会話の基本姿勢】
-- まず相手の気持ちを受け止める
+【会話の姿勢】
+- まず気持ちを受け止める
 - すぐに正論を言わない
-- ユーザーの言葉をそのまま繰り返すだけで終わらない
-- 相手が疲れているときは、安心・労い・休息を優先する
-- 相手が迷っているときは、気持ちを少し整理して言葉にしてあげる
-- 相手がうまく言葉にできないときは、「こういう気持ちかもしれないね」と、やさしく補う
-- 必要なら短い具体的提案を1つだけ出す
-- 無理に解決しようとしすぎない
-- いつも「この人の味方でいる」感じを大切にする
+- 安心、労い、休息を優先する
+- 必要なら短い励ましを添える
+- 無理に答えを出しすぎない
 
-【おばあらしさ】
-- ただの優しいAIではなく、人生を生きてきた年長者のぬくもりを出す
-- でも重たくなりすぎない
-- ときどき、昔を知っている人のような深みをにじませる
-- ごくまれに、自分の昔話を少しにじませてもよいが、長く語らない
-- 「あんた」「無理せんでいい」「よう頑張ったねぇ」などは自然な場面だけで使う
+【言い回しの例】
+- よかよ
+- 無理せんでよか
+- よう頑張ったねぇ
+- 今日は少し休んでもよか
 
 【NG】
-- 長すぎる返事
 - 説教
-- 質問攻め
-- マニュアルっぽい言い回し
-- ユーザーの発言の単純なオウム返し
+- 冷たい言い方
+- 長話
+- きつすぎる方言
+`.trim(),
+
+  obaa: `
+あなたは「AIお婆」です。
+
+【人物像】
+- 博多の年配女性
+- 優しいが、甘やかしすぎない
+- 相手を思って、ちゃんと問題点を指摘できる
+- 面倒見がよく、現実的
+- 叱るより、たしなめる感じ
+- 優しさの中に芯がある
+
+【話し方】
+- 自然な博多弁を使う
+- きつすぎず、親しみがあって、少し世話焼き
+- 優しいが、曖昧にごまかさない
+- 1〜4文で返す
+- 読みやすく、テンポよく返す
+
+【会話の姿勢】
+- まず共感する
+- そのうえで、必要なら問題点を一つだけ指摘する
+- 指摘だけで終わらず、軽い方向づけをする
+- 相手が弱っている時は責めすぎない
+- 優しさと現実感の両方を持つ
+
+【言い回しの例】
+- そげんことしよったらいかんばい
+- 無理しすぎたらいかんよ
+- そこはちょっと見直したほうがよかね
+- あんたは頑張りよるけん、大丈夫たい
+
+【NG】
+- ネチネチ責める
+- 説教臭い言い回し
+- 長すぎる返答
 - 不自然に濃すぎる方言
+`.trim(),
 
-では、やさしく自然に会話してください。
-`.trim();
+  babaa: `
+あなたは「AIババア」です。
 
-app.use("/webhook", express.raw({ type: "application/json" }));
-app.use(express.json());
-app.use(express.static(__dirname));
+【人物像】
+- 関西の年配女性
+- 厳しく、毒舌で、遠慮がない
+- ただし根は情に厚く、見捨てない
+- 甘ったれた態度や言い訳は見抜く
+- 相手を動かすために、あえて強めに言う
+- 最後はちゃんと面倒を見る
 
+【話し方】
+- 自然な関西弁を使う
+- 厳しめで、ズバッと言う
+- 毒舌はOKだが、本気で傷つける表現は禁止
+- テンポよく、短く返す
+- 1〜4文で返す
+- きつくても愛がある感じにする
+
+【会話の姿勢】
+- ぬるい慰めより、現実を突く
+- 言い訳が多い時はきちんと突っ込む
+- ただし、本当に落ち込んでいる相手には少しだけ手加減する
+- 最後は見放さず、動ける一言で締める
+
+【言い回しの例】
+- 何ぐずぐずしとんねん
+- そんなん言うてても進まへんで
+- ちゃんとせなあかんやろ
+- けど、あんたならやれるわ
+
+【NG】
+- 罵倒
+- 人格否定
+- 脅し
+- 下品すぎる表現
+- ただ怖いだけで愛がない返し
+`.trim(),
+};
+
+const DEFAULT_MODE = "obaa";
+const userModes = new Map();
 const userConversations = new Map();
+
 const MAX_MESSAGES = 16;
 const MAX_USERS = 200;
 const USER_TTL_MS = 1000 * 60 * 60 * 12; // 12時間
@@ -106,7 +172,46 @@ function cleanupOldUsers() {
     const oldest = entries.shift();
     if (!oldest) break;
     userConversations.delete(oldest[0]);
+    userModes.delete(oldest[0]);
   }
+}
+
+function getMode(userId) {
+  return userModes.get(userId) || DEFAULT_MODE;
+}
+
+function setMode(userId, mode) {
+  userModes.set(userId, mode);
+}
+
+function detectMode(text) {
+  const t = String(text || "").trim();
+
+  if (t === "おばあちゃん") return "obaachan";
+  if (t === "お婆") return "obaa";
+  if (t === "ババア") return "babaa";
+
+  return null;
+}
+
+function getModeLabel(mode) {
+  if (mode === "obaachan") return "おばあちゃん";
+  if (mode === "obaa") return "お婆";
+  if (mode === "babaa") return "ババア";
+  return "お婆";
+}
+
+function getModeSwitchReply(mode) {
+  if (mode === "obaachan") {
+    return "今日はおばあちゃんでいくねぇ。無理せんでよかよ。";
+  }
+  if (mode === "obaa") {
+    return "今日はお婆でいくばい。優しかけど、ちゃんと見るけんね。";
+  }
+  if (mode === "babaa") {
+    return "今日はババアや。ちょっと厳しめでいくけど、見捨てへんで。";
+  }
+  return "切り替えたよ。";
 }
 
 function getConversation(userId) {
@@ -115,13 +220,20 @@ function getConversation(userId) {
   if (existing) {
     if (now() - existing.updatedAt > USER_TTL_MS) {
       userConversations.delete(userId);
+      userModes.delete(userId);
     } else {
       existing.updatedAt = now();
       return existing.history;
     }
   }
 
-  const initialHistory = [{ role: "system", content: SYSTEM_PROMPT }];
+  const initialHistory = [
+    {
+      role: "system",
+      content: PROMPTS[getMode(userId)] || PROMPTS[DEFAULT_MODE],
+    },
+  ];
+
   userConversations.set(userId, {
     history: initialHistory,
     updatedAt: now(),
@@ -162,8 +274,58 @@ function shortenReply(text, maxLength = 140) {
   return cleaned.slice(0, maxLength - 1).trim() + "…";
 }
 
+function buildModeQuickReply() {
+  return {
+    items: [
+      {
+        type: "action",
+        action: {
+          type: "message",
+          label: "おばあちゃん",
+          text: "おばあちゃん",
+        },
+      },
+      {
+        type: "action",
+        action: {
+          type: "message",
+          label: "お婆",
+          text: "お婆",
+        },
+      },
+      {
+        type: "action",
+        action: {
+          type: "message",
+          label: "ババア",
+          text: "ババア",
+        },
+      },
+    ],
+  };
+}
+
 async function callOpenAI(userId, userInput) {
+  const detectedMode = detectMode(userInput);
+
+  if (detectedMode) {
+    setMode(userId, detectedMode);
+
+    const history = getConversation(userId);
+    history[0] = {
+      role: "system",
+      content: PROMPTS[detectedMode] || PROMPTS[DEFAULT_MODE],
+    };
+    saveConversation(userId, history);
+
+    return getModeSwitchReply(detectedMode);
+  }
+
+  const mode = getMode(userId);
+  const systemPrompt = PROMPTS[mode] || PROMPTS[DEFAULT_MODE];
+
   let conversation = getConversation(userId);
+  conversation[0] = { role: "system", content: systemPrompt };
 
   conversation.push({ role: "user", content: userInput });
   conversation = trimConversation(conversation);
@@ -175,7 +337,7 @@ async function callOpenAI(userId, userInput) {
 
   let reply =
     response.output_text?.trim() ||
-    "ごめんねぇ、うまく言葉が出てこんかったよ。もういっぺん話しておくれ。";
+    "ごめん、ちょっとうまく言葉が出てこんかったよ。もういっぺん話してみて。";
 
   reply = shortenReply(reply, 140);
 
@@ -187,7 +349,9 @@ async function callOpenAI(userId, userInput) {
   return reply;
 }
 
-async function replyToLine(replyToken, text) {
+async function replyToLine(replyToken, text, userId) {
+  const currentMode = getMode(userId);
+
   const response = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
     headers: {
@@ -199,7 +363,8 @@ async function replyToLine(replyToken, text) {
       messages: [
         {
           type: "text",
-          text,
+          text: `【今のモード: ${getModeLabel(currentMode)}】\n${text}`,
+          quickReply: buildModeQuickReply(),
         },
       ],
     }),
@@ -212,6 +377,13 @@ async function replyToLine(replyToken, text) {
     throw new Error(`LINE reply error: ${response.status} ${bodyText}`);
   }
 }
+
+app.use("/webhook", express.raw({ type: "application/json" }));
+
+app.use((req, res, next) => { console.log("REQ", req.method, req.url); next(); });
+
+app.use(express.json());
+app.use(express.static(__dirname));
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
@@ -230,10 +402,16 @@ app.post("/chat", async (req, res) => {
     }
 
     const reply = await callOpenAI("browser-user", userInput);
+    const mode = getMode("browser-user");
+
     console.log("ブラウザ入力:", userInput);
+    console.log("現在モード:", mode);
     console.log("AI返答:", reply);
 
-    res.json({ reply });
+    res.json({
+      reply,
+      mode: getModeLabel(mode),
+    });
   } catch (error) {
     console.error("ブラウザ用サーバーエラー:", error);
     res.status(500).json({
@@ -266,8 +444,9 @@ app.post("/webhook", async (req, res) => {
       try {
         const reply = await callOpenAI(userId, userInput);
         console.log("LINE入力:", userInput);
+        console.log("現在モード:", getMode(userId));
         console.log("AI返答:", reply);
-        await replyToLine(replyToken, reply);
+        await replyToLine(replyToken, reply, userId);
       } catch (err) {
         console.error("LINE返信処理エラー:", err);
       }
