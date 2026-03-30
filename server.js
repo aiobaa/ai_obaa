@@ -373,6 +373,7 @@ async function callOpenAI(userId, userInput) {
 }
 
 async function replyToLine(replyToken, text, userId) {
+  rememberLineUser(userId);
   const currentMode = getMode(userId);
 
   const response = await fetch("https://api.line.me/v2/bot/message/reply", {
