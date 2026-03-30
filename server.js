@@ -329,6 +329,11 @@ function buildModeQuickReply() {
   };
 }
 
+function rememberLineUser(userId) {
+  if (!userId || userId === "line-unknown-user") return;
+  lineKnownUsers.add(userId);
+}
+
 async function callOpenAI(userId, userInput) {
   const detectedMode = detectMode(userInput);
 
