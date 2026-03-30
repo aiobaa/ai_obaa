@@ -26,11 +26,38 @@ app.get("/test-message", (req, res) => {
   const message = pickRandomMessage(type);
   res.json({ message });
 });
-app.get("/push", (req, res) => {
+app.get("/push", async (req, res) => {
   const type = req.query.type === "night" ? "night" : "morning";
   const message = pickRandomMessage(type);
-  console.log("PUSH:", message);
-  res.send(message);
+
+  let count = 0;
+
+  for (const userId of lineKnownUsers) {
+    try {
+      await fetch("https://api.line.me/v2/bot/message/push", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
+        },
+        body: JSON.stringify({
+          to: userId,
+          messages: [
+            {
+              type: "text",
+              text: message,
+            },
+          ],
+        }),
+      });
+
+      count++;
+    } catch (e) {
+      console.error("push失敗:", e);
+    }
+  }
+
+  res.send(`送信数: ${count}`);
 });
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
