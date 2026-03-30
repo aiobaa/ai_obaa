@@ -420,6 +420,11 @@ if (nameMatch) {
     "ごめん、ちょっとうまく言葉が出てこんかったよ。もういっぺん話してみて。";
 
   reply = shortenReply(reply, 140);
+
+  const savedName = userModes.get(userId + "_name");
+if (savedName) {
+  reply = `${savedName}、${reply}`;
+}
   if (Math.random() < 0.3) {
   reply += "\nあんたが話してくれるけん、嬉しかよ";
 }
