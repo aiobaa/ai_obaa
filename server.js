@@ -44,7 +44,6 @@ try {
 
 for (const userId of users) {
 
-  for (const userId of lineKnownUsers) {
     try {
       await fetch("https://api.line.me/v2/bot/message/push", {
         method: "POST",
