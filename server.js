@@ -414,6 +414,9 @@ async function callOpenAI(userId, userInput) {
     "ごめん、ちょっとうまく言葉が出てこんかったよ。もういっぺん話してみて。";
 
   reply = shortenReply(reply, 140);
+  if (Math.random() < 0.3) {
+  reply += "\nあんたが話してくれるけん、嬉しかよ";
+}
 
   conversation.push({ role: "assistant", content: reply });
   conversation = trimConversation(conversation);
