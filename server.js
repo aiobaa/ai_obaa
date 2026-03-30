@@ -422,6 +422,9 @@ function rememberLineUser(userId, name) {
 }
 
 async function callOpenAI(userId, userInput) {
+
+  const memory = getMemory(userId);
+  
   const detectedMode = detectMode(userInput);
 
  const nameMatch = userInput.match(/俺は(.+)|私は(.+)|名前は(.+)/);
@@ -482,6 +485,10 @@ ${memory.lastMessages.join("\n")}
   let reply =
     response.output_text?.trim() ||
     "ごめん、ちょっとうまく言葉が出てこんかったよ。もういっぺん話してみて。";
+
+  if (memory.name) {
+  reply = `${memory.name}、${reply}`;
+}
 
   reply = shortenReply(reply, 140);
 
