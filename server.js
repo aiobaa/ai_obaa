@@ -74,6 +74,15 @@ app.get("/push", async (req, res) => {
         }),
       });
 
+      count++;
+    } catch (e) {
+      console.error("push失敗:", e);
+    }
+  }
+
+  res.send(`送信数: ${count}`);
+});
+
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
