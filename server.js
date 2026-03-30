@@ -36,6 +36,13 @@ app.get("/push", async (req, res) => {
   let message = pickRandomMessage(type);
 
   let count = 0;
+  
+  let users = [];
+try {
+  users = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
+} catch (e) {}
+
+for (const userId of users) {
 
   for (const userId of lineKnownUsers) {
     try {
