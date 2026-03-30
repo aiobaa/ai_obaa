@@ -10,11 +10,14 @@ const PORT = Number(process.env.PORT || 3000);
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const morningMessages = [
-  "おはよう。今日はどんな調子ね？ひとつだけ出来そうなこと、あるかね？"
+  "おはよう。今日はどんな調子ね？ひとつだけ出来そうなこと、あるかね？",
+  "おはよう。今日は何を少しだけ進められそうね？無理せんでよかよ。",
+  "おはよう。今日ひとつだけやるとしたら、何にするね？"
 ];
 const nightMessages = [
-  "今日もよう頑張ったねえ。ゆっくり休みなさい。",
-  "おつかれさま。今日はもうそれで十分よ。"
+  "今日はどげんやったね？ひとつだけ、よかったこと教えてくれんね。",
+  "おつかれさん。今日少しでも出来たこと、何かあったかね？",
+  "今日はよう頑張ったねぇ。ひとつだけ、自分を褒めてあげてよかよ。"
 ];
 function pickRandomMessage(type) {
   const list = type === "morning" ? morningMessages : nightMessages;
