@@ -571,6 +571,13 @@ app.post("/webhook", async (req, res) => {
       const userInput = event.message.text;
       const replyToken = event.replyToken;
 
+      const memory = getMemory(userId);
+
+memory.lastMessages.push(userInput);
+if (memory.lastMessages.length > 5) {
+  memory.lastMessages.shift();
+}
+
       try {
         const reply = await callOpenAI(userId, userInput);
         console.log("LINE入力:", userInput);
