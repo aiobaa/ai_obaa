@@ -9,6 +9,20 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+const userMemory = new Map();
+
+function getMemory(userId) {
+  if (!userMemory.has(userId)) {
+    userMemory.set(userId, {
+      name: null,
+      likes: [],
+      lastMessages: []
+    });
+  }
+  return userMemory.get(userId);
+}
+
 const morningMessages = [
   "おはよう。今日はどんな調子ね？ひとつだけ出来そうなこと、あるかね？",
   "おはよう。今日は何を少しだけ進められそうね？無理せんでよかよ。",
