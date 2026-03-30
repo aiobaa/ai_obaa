@@ -484,7 +484,7 @@ ${memory.lastMessages.join("\n")}
     response.output_text?.trim() ||
     "ごめん、ちょっとうまく言葉が出てこんかったよ。もういっぺん話してみて。";
 
-  if (memory.name) {
+ if (memory.name && Math.random() < 0.3) {
   reply = `${memory.name}、${reply}`;
 }
 
