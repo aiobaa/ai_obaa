@@ -453,9 +453,30 @@ if (nameMatch) {
   conversation = trimConversation(conversation);
 
   const response = await client.responses.create({
-    model: "gpt-5.4",
-    input: conversation,
-  });
+  model: "gpt-5.4",
+  input: [
+    {
+      role: "system",
+      content: `
+あなたは優しいおばあです。
+
+この人の情報：
+名前：${memory.name || "不明"}
+好きなこと：${memory.likes.join(", ")}
+
+最近の会話：
+${memory.lastMessages.join("\n")}
+
+優しく、短く、寄り添ってください。
+`
+    },
+    {
+      role: "user",
+      content: userInput
+    }
+  ],
+});
+  
   let reply =
     response.output_text?.trim() ||
     "ごめん、ちょっとうまく言葉が出てこんかったよ。もういっぺん話してみて。";
