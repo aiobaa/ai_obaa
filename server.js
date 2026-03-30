@@ -554,14 +554,3 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-app.get("/ping", (req, res) => {
-  res.send("ok");
-});
-app.get("/push", (req, res) => {
-  const type = req.query.type === "night" ? "night" : "morning";
-  const message = pickRandomMessage(type);
-  res.send(message);
-});
-app.listen(PORT, () => {
-  console.log(`http://localhost:${PORT} で起動中`);
-});
