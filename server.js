@@ -29,27 +29,32 @@ app.get("/test-message", (req, res) => {
   res.json({ message });
 });
 app.get("/push", async (req, res) => {
-    if (req.query.secret !== process.env.PUSH_SECRET) {
+  if (req.query.secret !== process.env.PUSH_SECRET) {
     return res.status(403).send("forbidden");
   }
+
   const type = req.query.type === "night" ? "night" : "morning";
   let message = pickRandomMessage(type);
 
   let count = 0;
-  
+
   let users = [];
-try {
-  users = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
-} catch (e) {}
+  try {
+    users = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
+  } catch (e) {}
 
-for (const userId of users) {
+  for (const user of users) {
+    const userId = typeof user === "object" ? user.userId : user;
 
-  let finalMessage = message;
+    let finalMessage = message;
 
-const name = userModes.get(userId + "_name");
-if (name) {
-  finalMessage = `${name}、${message}`;
-}
+    const savedFileName = typeof user === "object" ? user.name : "";
+    const memoryName = userModes.get(userId + "_name");
+    const name = memoryName || savedFileName;
+
+    if (name) {
+      finalMessage = `${name}、${message}`;
+    }
 
     try {
       await fetch("https://api.line.me/v2/bot/message/push", {
@@ -68,6 +73,18 @@ if (name) {
           ],
         }),
       });
+
+      count++;
+    } catch (e) {
+      console.error("push失敗:", e);
+    }
+  }
+
+  res.send(`送信数: ${count}`);
+});
+  
+     method: "POST",
+   
 
       count++;
     } catch (e) {
@@ -377,7 +394,7 @@ function buildModeQuickReply() {
   };
 }
 
-function rememberLineUser(userId) {
+function rememberLineUser(userId, name) {
   if (!userId || userId === "line-unknown-user") return;
 
   let users = [];
@@ -385,23 +402,31 @@ function rememberLineUser(userId) {
     users = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
   } catch (e) {}
 
-  if (!users.includes(userId)) {
-    users.push(userId);
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+  const existing = users.find((u) =>
+    typeof u === "object" ? u.userId === userId : u === userId
+  );
+
+  if (existing) {
+    if (name && typeof existing === "object") {
+      existing.name = name;
+    }
+  } else {
+    users.push({ userId, name: name || "" });
   }
 
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
   lineKnownUsers.add(userId);
 }
 
 async function callOpenAI(userId, userInput) {
   const detectedMode = detectMode(userInput);
 
-  const nameMatch = userInput.match(/俺は(.+)|私は(.+)|名前は(.+)/);
+ const nameMatch = userInput.match(/俺は(.+)|私は(.+)|名前は(.+)/);
 if (nameMatch) {
   const name = (nameMatch[1] || nameMatch[2] || nameMatch[3]).trim();
   userModes.set(userId + "_name", name);
+  rememberLineUser(userId, name);
 }
-
   if (detectedMode) {
     setMode(userId, detectedMode);
 
