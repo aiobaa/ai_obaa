@@ -27,6 +27,9 @@ app.get("/test-message", (req, res) => {
   res.json({ message });
 });
 app.get("/push", async (req, res) => {
+    if (req.query.secret !== process.env.PUSH_SECRET) {
+    return res.status(403).send("forbidden");
+  }
   const type = req.query.type === "night" ? "night" : "morning";
   const message = pickRandomMessage(type);
 
