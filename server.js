@@ -595,6 +595,12 @@ app.post("/webhook", async (req, res) => {
       const memory = getMemory(userId);
 
 memory.lastMessages.push(userInput);
+      if (userInput.includes("名前") || userInput.includes("俺は")) {
+  const parts = userInput.split("は");
+  if (parts.length > 1) {
+    memory.name = parts[1].trim();
+  }
+}
 if (memory.lastMessages.length > 5) {
   memory.lastMessages.shift();
 }
