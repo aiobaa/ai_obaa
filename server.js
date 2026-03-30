@@ -33,7 +33,7 @@ app.get("/push", async (req, res) => {
     return res.status(403).send("forbidden");
   }
   const type = req.query.type === "night" ? "night" : "morning";
-  const message = pickRandomMessage(type);
+  let message = pickRandomMessage(type);
 
   let count = 0;
 
