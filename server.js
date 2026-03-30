@@ -636,3 +636,37 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
+let lastSentDate = "";
+
+setInterval(async () => {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+
+  // 朝7時ちょうど
+ const today = now.toDateString();
+
+if (hour === 7 && minute === 0 && lastSentDate !== today) {
+  lastSentDate = today;
+    console.log("朝メッセージ送信");
+
+    try {
+      await fetch("https://ai-obaa.onrender.com/push?type=morning");
+    } catch (e) {
+      console.log("送信エラー", e);
+    }
+  }
+
+  // 夜21時
+if (hour === 21 && minute === 0 && lastSentDate !== today + "_night") {
+  lastSentDate = today + "_night";
+
+  console.log("夜メッセージ送信");
+
+  try {
+    await fetch("https://ai-obaa.onrender.com/push?type=night");
+  } catch (e) {
+    console.log("送信エラー", e);
+  }
+}
+}, 60000);
