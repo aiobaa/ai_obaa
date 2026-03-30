@@ -176,6 +176,7 @@ const PROMPTS = {
 const DEFAULT_MODE = "obaa";
 const userModes = new Map();
 const userConversations = new Map();
+const lineKnownUsers = new Set();
 
 const MAX_MESSAGES = 16;
 const MAX_USERS = 200;
