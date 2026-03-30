@@ -10,7 +10,6 @@ const PORT = Number(process.env.PORT || 3000);
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const morningMessages = [
-  "おはよう。今日は無理せんでええよ。",
   "おはよう。今日はどんな調子ね？ひとつだけ出来そうなこと、あるかね？"
 ];
 const nightMessages = [
