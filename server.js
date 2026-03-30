@@ -205,6 +205,9 @@ const userModes = new Map();
 const userConversations = new Map();
 const lineKnownUsers = new Set();
 
+const fs = require("fs");
+const USERS_FILE = path.join(__dirname, "line-users.json");
+
 const MAX_MESSAGES = 16;
 const MAX_USERS = 200;
 const USER_TTL_MS = 1000 * 60 * 60 * 12; // 12時間
