@@ -44,6 +44,13 @@ try {
 
 for (const userId of users) {
 
+  let finalMessage = message;
+
+const name = userModes.get(userId + "_name");
+if (name) {
+  finalMessage = `${name}、${message}`;
+}
+
     try {
       await fetch("https://api.line.me/v2/bot/message/push", {
         method: "POST",
@@ -56,7 +63,7 @@ for (const userId of users) {
           messages: [
             {
               type: "text",
-              text: message,
+              text: finalMessage,
             },
           ],
         }),
