@@ -361,6 +361,17 @@ function buildModeQuickReply() {
 
 function rememberLineUser(userId) {
   if (!userId || userId === "line-unknown-user") return;
+
+  let users = [];
+  try {
+    users = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
+  } catch (e) {}
+
+  if (!users.includes(userId)) {
+    users.push(userId);
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+  }
+
   lineKnownUsers.add(userId);
 }
 
