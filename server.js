@@ -454,8 +454,6 @@ if (nameMatch) {
 
   conversation.push({ role: "user", content: userInput });
   conversation = trimConversation(conversation);
-
-  const memory = getMemory(userId);
   
   const response = await client.responses.create({
   model: "gpt-5.4",
