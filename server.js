@@ -383,6 +383,12 @@ function rememberLineUser(userId) {
 async function callOpenAI(userId, userInput) {
   const detectedMode = detectMode(userInput);
 
+  const nameMatch = userInput.match(/俺は(.+)|私は(.+)|名前は(.+)/);
+if (nameMatch) {
+  const name = (nameMatch[1] || nameMatch[2] || nameMatch[3]).trim();
+  userModes.set(userId + "_name", name);
+}
+
   if (detectedMode) {
     setMode(userId, detectedMode);
 
