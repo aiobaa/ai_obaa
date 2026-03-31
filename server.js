@@ -464,7 +464,7 @@ if (nameMatch) {
 
 const likesHint =
   wantsMemory && memory.likes.length > 0
-    ? `${likesHint}`
+    ? `・好きなこと：${memory.likes.join(", ")`
     : "";
   
   const response = await client.responses.create({
@@ -515,10 +515,6 @@ reply = reply.replace(/\s{2,}/g, " ");
 
   reply = shortenReply(reply, 140);
 
-  const savedName = userModes.get(userId + "_name");
-if (savedName) {
-  reply = `${savedName}、${reply}`;
-}
   if (Math.random() < 0.3) {
   reply += "\nあんたが話してくれるけん、嬉しかよ";
 }
