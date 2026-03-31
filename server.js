@@ -439,15 +439,16 @@ if (
   
   const detectedMode = detectMode(userInput);
 
- const nameMatch = userInput.match(/俺は(.+)|私は(.+)|名前は(.+)/);
+const nameMatch = userInput.match(/^(?:俺は|私は|名前は)([^？?。！!\n]+)$/);
 if (nameMatch) {
-  const name = (nameMatch[1] || nameMatch[2] || nameMatch[3]).trim();
+  const name = nameMatch[1].trim();
 
   memory.name = name;
-  
+
   userModes.set(userId + "_name", name);
   rememberLineUser(userId, name);
 }
+  
   if (detectedMode) {
     setMode(userId, detectedMode);
 
