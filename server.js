@@ -501,6 +501,18 @@ ${memory.lastMessages.join("\n")}
     response.output_text?.trim() ||
     "ごめん、ちょっとうまく言葉が出てこんかったよ。もういっぺん話してみて。";
 
+  if (memory.name && !userInput.includes("名前") && !userInput.includes("覚えてる")) {
+  const regex = new RegExp(memory.name + "、?", "g");
+  reply = reply.replace(regex, "");
+}
+
+if (memory.likes.length > 0 && !userInput.includes("好き") && !userInput.includes("趣味")) {
+  reply = reply.replace(/[^。]*好き[^。]*。?/g, "");
+}
+
+  reply = reply.replace(/^、+/, "").trim();
+reply = reply.replace(/\s{2,}/g, " ");
+
   reply = shortenReply(reply, 140);
 
   const savedName = userModes.get(userId + "_name");
