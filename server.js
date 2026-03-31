@@ -436,8 +436,6 @@ if (
     return "まだ名前は覚えてなかったよ。もう一回教えてくれるかね。";
   }
 }
-
-  const memory = getMemory(userId);
   
   const detectedMode = detectMode(userInput);
 
