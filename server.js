@@ -466,6 +466,7 @@ if (nameMatch) {
 この人の情報：
 名前：${memory.name || "不明"}
 好きなこと：${memory.likes.join(", ")}
+今の気分：${memory.emotion || "不明"}
 
 最近の会話：
 ${memory.lastMessages.join("\n")}
@@ -605,6 +606,12 @@ memory.lastMessages.push(userInput);
 
 if (memory.lastMessages.length > 5) {
   memory.lastMessages.shift();
+}
+      // 感情を簡単に記録
+if (userInput.includes("疲れ") || userInput.includes("しんどい") || userInput.includes("つらい")) {
+  memory.emotion = "tired";
+} else if (userInput.includes("楽しい") || userInput.includes("嬉しい")) {
+  memory.emotion = "happy";
 }
 
 if (userInput.includes("名前") || userInput.includes("俺は")) {
