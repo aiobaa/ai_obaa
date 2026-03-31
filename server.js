@@ -464,7 +464,7 @@ if (nameMatch) {
 
 const likesHint =
   wantsMemory && memory.likes.length > 0
-    ? `・好きなこと：${memory.likes.join(", ")`
+    ? `・好きなこと：${memory.likes.join(", ")}`
     : "";
   
   const response = await client.responses.create({
