@@ -469,6 +469,7 @@ if (nameMatch) {
 ・気分：${memory.emotion || "不明"}
 
 ※これらを毎回そのまま繰り返さず、自然に会話ににじませてください
+※気分に応じて話し方や内容を変えてください
 
 最近の会話：
 ${memory.lastMessages.join("\n")}
