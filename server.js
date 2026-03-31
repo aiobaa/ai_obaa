@@ -424,12 +424,29 @@ function rememberLineUser(userId, name) {
 async function callOpenAI(userId, userInput) {
 
   const memory = getMemory(userId);
+
+if (
+  userInput.includes("名前覚えてる") ||
+  userInput.includes("俺の名前") ||
+  userInput.includes("名前は")
+) {
+  if (memory.name) {
+    return `${memory.name}やったねぇ。ちゃんと覚えとるよ。`;
+  } else {
+    return "まだ名前は覚えてなかったよ。もう一回教えてくれるかね。";
+  }
+}
+
+  const memory = getMemory(userId);
   
   const detectedMode = detectMode(userInput);
 
  const nameMatch = userInput.match(/俺は(.+)|私は(.+)|名前は(.+)/);
 if (nameMatch) {
   const name = (nameMatch[1] || nameMatch[2] || nameMatch[3]).trim();
+
+  memory.name = name;
+  
   userModes.set(userId + "_name", name);
   rememberLineUser(userId, name);
 }
