@@ -651,7 +651,7 @@ if (hour === 7 && minute === 0 && lastSentDate !== today) {
     console.log("朝メッセージ送信");
 
     try {
-      await fetch("https://ai-obaa.onrender.com/push?type=morning");
+      await fetch("https://ai-obaa.onrender.com/push?type=morning&secret=あなたのPUSH_SECRET");
     } catch (e) {
       console.log("送信エラー", e);
     }
@@ -664,7 +664,7 @@ if (hour === 21 && minute === 0 && lastSentDate !== today + "_night") {
   console.log("夜メッセージ送信");
 
   try {
-    await fetch("https://ai-obaa.onrender.com/push?type=night");
+    await fetch("https://ai-obaa.onrender.com/push?type=night&secret=あなたのPUSH_SECRET");
   } catch (e) {
     console.log("送信エラー", e);
   }
