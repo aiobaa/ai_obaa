@@ -454,6 +454,18 @@ if (nameMatch) {
 
   conversation.push({ role: "user", content: userInput });
   conversation = trimConversation(conversation);
+
+  const wantsMemory =
+  userInput.includes("覚えてる") ||
+  userInput.includes("趣味") ||
+  userInput.includes("好き") ||
+  userInput.includes("前に話した") ||
+  userInput.includes("俺のこと");
+
+const likesHint =
+  wantsMemory && memory.likes.length > 0
+    ? `${likesHint}`
+    : "";
   
   const response = await client.responses.create({
   model: "gpt-5.4",
@@ -465,7 +477,7 @@ if (nameMatch) {
 
 この人の情報：
 ・名前：${memory.name || "不明"}
-・好きなこと：${memory.likes.join(", ")}
+${likesHint}
 ・気分：${memory.emotion || "不明"}
 
 ※これらを毎回そのまま繰り返さず、自然に会話ににじませてください
