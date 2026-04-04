@@ -2,8 +2,6 @@ require("dotenv").config();
 
 const express = require("express");
 const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
 const OpenAI = require("openai");
 
 const app = express();
@@ -14,72 +12,11 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
-const DATA_FILE = path.join(__dirname, "obaa-data.json");
-
 const userModes = new Map();
 const userConversations = new Map();
 const userCoins = new Map();
 const userStreak = new Map();
 const userTodayQuest = new Map();
-
-/* =========================
-   保存まわり
-========================= */
-
-function mapToObject(map) {
-  return Object.fromEntries(map);
-}
-
-function objectToMap(obj) {
-  return new Map(Object.entries(obj || {}));
-}
-
-function saveAllData() {
-  try {
-    const data = {
-      userModes: mapToObject(userModes),
-      userConversations: mapToObject(userConversations),
-      userCoins: mapToObject(userCoins),
-      userStreak: mapToObject(userStreak),
-      userTodayQuest: mapToObject(userTodayQuest),
-    };
-
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
-  } catch (e) {
-    console.error("saveAllData error:", e);
-  }
-}
-
-function loadAllData() {
-  try {
-    if (!fs.existsSync(DATA_FILE)) return;
-
-    const raw = fs.readFileSync(DATA_FILE, "utf8");
-    if (!raw) return;
-
-    const data = JSON.parse(raw);
-
-    for (const [k, v] of objectToMap(data.userModes)) {
-      userModes.set(k, v);
-    }
-    for (const [k, v] of objectToMap(data.userConversations)) {
-      userConversations.set(k, v);
-    }
-    for (const [k, v] of objectToMap(data.userCoins)) {
-      userCoins.set(k, Number(v) || 0);
-    }
-    for (const [k, v] of objectToMap(data.userStreak)) {
-      userStreak.set(k, v);
-    }
-    for (const [k, v] of objectToMap(data.userTodayQuest)) {
-      userTodayQuest.set(k, v);
-    }
-
-    console.log("保存データ読込OK");
-  } catch (e) {
-    console.error("loadAllData error:", e);
-  }
-}
 
 /* =========================
    日付・ストリーク
@@ -113,7 +50,6 @@ function updateStreak(userId) {
 
   data.lastDate = today;
   userStreak.set(userId, data);
-  saveAllData();
 
   return data.streak;
 }
@@ -192,90 +128,46 @@ const OBAA_WORLD = {
 ・理由を短く言う
 ・今やる行動を1つ出す
 ・最後は突き放さず背中を押す
-`,
+`
 };
 
 /* =========================
    ユーティリティ
 ========================= */
 
-function getQuestPool() {
-  return [
-    "今日のクエスト：水を一口飲む",
-    "今日のクエスト：コップ1杯水を飲む",
-    "今日のクエスト：顔を洗う",
-    "今日のクエスト：外の空気を吸う",
-    "今日のクエスト：5分だけ歩く",
-    "今日のクエスト：椅子から立つ",
-    "今日のクエスト：背伸びをする",
-    "今日のクエスト：机を少しだけ片付ける",
-    "今日のクエスト：洗い物を少しやる",
-    "今日のクエスト：メールを1通返す",
-    "今日のクエスト：1つだけタスクを終わらせる",
-    "今日のクエスト：いらない紙を1枚捨てる",
-    "今日のクエスト：服を1枚整える",
-    "今日のクエスト：深呼吸を3回する",
-    "今日のクエスト：目を閉じて1分休む",
-    "今日のクエスト：自分に一言やさしくする",
-    "今日のクエスト：嫌なことを1つ流す",
-    "今日のクエスト：肩の力を抜く",
-    "今日のクエスト：今の気分を一言で言う",
-    "今日のクエスト：スマホを1分置く",
-    "今日のクエスト：誰かに一言返す",
-    "今日のクエスト：1分だけやる",
-    "今日のクエスト：最初の一歩をやる",
-    "今日のクエスト：今日やることを1つ決める",
-  ];
-}
-
-function pickQuest(userId) {
-  const questPool = getQuestPool();
-  const lastQuest = userTodayQuest.get(userId);
-
-  let quest = "";
-  for (let i = 0; i < 10; i++) {
-    const candidate = questPool[Math.floor(Math.random() * questPool.length)];
-    if (candidate !== lastQuest) {
-      quest = candidate;
-      break;
-    }
-  }
-
-  if (!quest) {
-    quest = questPool[Math.floor(Math.random() * questPool.length)];
-  }
-
-  userTodayQuest.set(userId, quest);
-  saveAllData();
-
-  return quest;
-}
-
 function getMorningMessage(userId, mode = "obaa", name = "") {
   const messages = {
     obaachan: [
-      "おはよう。朝になったよ。無理にしゃんとせんでもよかけん、ゆっくり始めよか。",
-      "おはようさん。今日もぼちぼちでよかよ。",
-      "朝やねぇ。大きなことせんでよか、小さく動こか。",
-      "おはよう。起きるだけでも十分たい。今日は一つでよかよ。"
+      "おはよう。朝になったよ。無理にしゃんとせんでもよかけん、まず起きてお水ばひとくち飲もか。",
+      "おはようさん。よう眠れたね。まだ体が重たかなら、布団の中で背伸びしてからでよかよ。",
+      "朝やよ。いっぺんに頑張らんでよか。まず顔ば上げて、今日を始めてみよか。",
+      "おはよう。起きるのがつらい朝もあるもんねぇ。そいでも、カーテンば少し開けたら朝が入りこんでくるよ。"
     ],
     obaa: [
-      "おはよう。朝は段取りたい。まず一個だけやろう。",
-      "おはよう。しんどくても1つやれば流れ変わるけん。",
-      "朝やね。小さく動くと今日が楽になるよ。",
-      "おはよう。今日も無理に全部やらんでよか。一つで十分たい。"
+      "おはよう。朝やけん、まず起きよ。気分が乗らんでも、顔洗って水飲んだら少し流れが変わるけん。",
+      "おはようさん。だるくても、まず布団から出るとこまででよか。朝は勢いより段取りたい。",
+      "朝やね。考えごとは起きてからでよかけん、まず座って、深呼吸して、今日を始めよ。",
+      "おはよう。しんどい朝ほど、一気に立て直そうとせんでよか。起きる、飲む、顔洗う。その3つで十分たい。"
     ],
     babaa: [
-      "朝やで。でかいこといらん。1個だけやれ。",
-      "起きたなら何か1つやっとけ。それで十分や。",
-      "完璧いらん。動いたら勝ちや。",
-      "朝や。気分待ちせんと、小さくやるんや。"
-    ],
+      "朝やで。しんどいのはわかるけど、ずっと寝とっても気分はようならへん。まず起き。",
+      "おはようさん。気合いはいらん。布団から出る、それだけや。そこから先は起きてから考えたらええ。",
+      "朝や。重たい日ほど、頭より先に体を動かし。水飲んで、顔洗って、今日を始めるんや。",
+      "起きや。完璧な朝なんかいらんねん。起きたらもう半分勝ちや。"
+    ]
   };
 
   const list = messages[mode] || messages.obaa;
   const msg = list[Math.floor(Math.random() * list.length)];
-  const quest = pickQuest(userId);
+
+  const questList = [
+    "今日のクエスト：顔を洗う",
+    "今日のクエスト：カーテンを開ける",
+    "今日のクエスト：水を一口飲む"
+  ];
+
+  const quest = questList[Math.floor(Math.random() * questList.length)];
+  userTodayQuest.set(userId, quest);
 
   if (name) {
     return `${name}、${msg}\n\n📌 ${quest}\n（終わったら「やった」でOK）`;
@@ -284,42 +176,12 @@ function getMorningMessage(userId, mode = "obaa", name = "") {
   return `${msg}\n\n📌 ${quest}\n（終わったら「やった」でOK）`;
 }
 
-function getNightMessage(mode = "obaa", name = "") {
-  const messages = {
-    obaachan: [
-      "今日もよう生き抜いたねぇ。大きなことじゃなくてよかけん、できたら「できた」、まだなら「まだ」で返してみ。",
-      "おつかれさん。うまくいかん日もあるけん、責めんでよかよ。少しでも動けたら「できた」、しんどかったら「しんどい」でよか。",
-      "夜やねぇ。今日はどうやった？ ちょっとでもやれたなら「できた」、まだでもそのまま返してよかよ。"
-    ],
-    obaa: [
-      "今日もおつかれさん。完璧じゃなくてよかけん、やれたら「できた」、まだなら「まだ」で返してみ。",
-      "今日はどうやった？ 少しでも動けたら十分たい。「できた」か「まだ」で返してみて。",
-      "一日終わりやね。しんどい日もあるけんね。やれたら「できた」、重かったら「しんどい」でよかよ。"
-    ],
-    babaa: [
-      "おつかれ。できたなら「できた」、まだなら「まだ」で返し。ごまかさんでええ。",
-      "今日はどうや。少しでもやったなら「できた」、無理やったら「しんどい」でええ。",
-      "夜やで。白黒つけんでええけど、今の状態だけ返し。『できた』『まだ』『しんどい』で足りる。"
-    ]
-  };
-
-  const list = messages[mode] || messages.obaa;
-  const msg = list[Math.floor(Math.random() * list.length)];
-
-  if (name) {
-    return `${name}、${msg}`;
-  }
-
-  return msg;
-}
-
 function getMode(userId) {
   return userModes.get(userId) || "obaa";
 }
 
 function setMode(userId, mode) {
   userModes.set(userId, mode);
-  saveAllData();
 }
 
 function getUserName(userId) {
@@ -329,14 +191,12 @@ function getUserName(userId) {
 function setUserName(userId, name) {
   if (!name) return;
   userModes.set(userId + "_name", name);
-  saveAllData();
 }
 
 function addHistory(userId, role, text) {
   const history = userConversations.get(userId) || [];
   history.push({ role, content: text });
   userConversations.set(userId, history.slice(-12));
-  saveAllData();
 }
 
 function getHistory(userId) {
@@ -362,7 +222,7 @@ function extractName(text) {
     /^(.{1,12})だ$/,
     /(?:俺|おれ|僕|ぼく|私|わたし)の名前は(.{1,12})$/,
     /宮崎です$/,
-    /しょうごです$/,
+    /しょうごです$/
   ];
 
   for (const pattern of patterns) {
@@ -379,170 +239,6 @@ function extractName(text) {
   }
 
   return "";
-}
-
-function getRewardReaction(mode, streak, bonus) {
-  let phase = "normal";
-  if (streak >= 7) phase = "core";
-  else if (streak >= 5) phase = "habit";
-  else if (streak >= 3) phase = "flow";
-
-  if (mode === "obaachan") {
-    if (phase === "core") {
-      return [
-        "ようここまで続けたねぇ",
-        "これはもう、頑張りじゃなくて自分の力になっとるよ",
-        "無理してないのがいちばんえらか",
-        bonus > 0 ? `ボーナス +${bonus}` : ""
-      ];
-    }
-
-    if (phase === "habit") {
-      return [
-        "ちゃんと積み重なってきとるねぇ",
-        "少しずつやけど、流れができとるよ",
-        bonus > 0 ? `ボーナス +${bonus}` : ""
-      ];
-    }
-
-    if (phase === "flow") {
-      return [
-        "いい流れやねぇ",
-        "無理しとらんのに続いとるのがええよ",
-        bonus > 0 ? `ボーナス +${bonus}` : ""
-      ];
-    }
-
-    return [
-      "ようやったね",
-      "それで十分たい",
-      bonus > 0 ? `ボーナス +${bonus}` : ""
-    ];
-  }
-
-  if (mode === "babaa") {
-    if (phase === "core") {
-      return [
-        "ここまで来たら本物や",
-        "気分に左右されん動きになっとる",
-        "もう崩れにくいで",
-        bonus > 0 ? `ボーナス +${bonus}` : ""
-      ];
-    }
-
-    if (phase === "habit") {
-      return [
-        "習慣になりかけとるな",
-        "このまま崩さんことや",
-        bonus > 0 ? `ボーナス +${bonus}` : ""
-      ];
-    }
-
-    if (phase === "flow") {
-      return [
-        "流れ出てきたな",
-        "ここで止まらんやつが強いねん",
-        bonus > 0 ? `ボーナス +${bonus}` : ""
-      ];
-    }
-
-    return [
-      "ようやった",
-      "逃げんかったな",
-      bonus > 0 ? `ボーナス +${bonus}` : ""
-    ];
-  }
-
-  if (phase === "core") {
-    return [
-      "ここまで続いとるのは大したもんたい",
-      "もうやる人の動きになっとるよ",
-      "無理なく積めとるのが強いね",
-      bonus > 0 ? `ボーナス +${bonus}` : ""
-    ];
-  }
-
-  if (phase === "habit") {
-    return [
-      "だいぶ流れができとるね",
-      "このままいけば習慣になるよ",
-      bonus > 0 ? `ボーナス +${bonus}` : ""
-    ];
-  }
-
-  if (phase === "flow") {
-    return [
-      "流れが出てきたね",
-      "こういう積み方が一番効くとよ",
-      bonus > 0 ? `ボーナス +${bonus}` : ""
-    ];
-  }
-
-  return [
-    "ようやったね",
-    "小さい一歩で十分たい",
-    bonus > 0 ? `ボーナス +${bonus}` : ""
-  ];
-}
-
-function buildQuestRewardMessages(userId, streak, bonus, nextCoins) {
-  const quest = userTodayQuest.get(userId) || "今日のクエスト";
-  const rewardLines = getRewardReaction(getMode(userId), streak, bonus);
-
-  return [
-    ...rewardLines,
-    `${streak}日連続`,
-    quest,
-    `コイン：${nextCoins}`
-  ].filter(Boolean);
-}
-
-function getStillResponse(mode) {
-  if (mode === "obaachan") {
-    return [
-      "まだでもよかよ",
-      "今日は重たかったんやろ",
-      "ゼロで終わらせんために、今から10秒だけでもええよ"
-    ];
-  }
-
-  if (mode === "babaa") {
-    return [
-      "まだか。ほな今から一番軽いやつだけやり",
-      "1分でええ",
-      "ゼロのまま寝るよりずっとマシや"
-    ];
-  }
-
-  return [
-    "まだでも大丈夫たい",
-    "今から一番軽い形にして1つだけやってみよ",
-    "ゼロじゃなく、ちょい前進で十分よ"
-  ];
-}
-
-function getTiredResponse(mode) {
-  if (mode === "obaachan") {
-    return [
-      "しんどかったねぇ",
-      "今日は責めんでよか",
-      "水ひとくちでも飲めたら、それで十分たい"
-    ];
-  }
-
-  if (mode === "babaa") {
-    return [
-      "しんどい日はある",
-      "今日は立て直しより、崩れすぎんこと優先や",
-      "水飲んで終わりでもええ"
-    ];
-  }
-
-  return [
-    "しんどい日は無理に押さんでよかよ",
-    "今日は回復優先たい",
-    "一番軽いことだけして終わってよか"
-  ];
 }
 
 /* =========================
@@ -573,11 +269,11 @@ function buildMessages(parts) {
               items: [
                 { type: "action", action: { type: "message", label: "おばあちゃん", text: "おばあちゃん" } },
                 { type: "action", action: { type: "message", label: "おばあ", text: "おばあ" } },
-                { type: "action", action: { type: "message", label: "ばばあ", text: "ばばあ" } },
-              ],
-            },
+                { type: "action", action: { type: "message", label: "ばばあ", text: "ばばあ" } }
+              ]
+            }
           }
-        : {}),
+        : {})
     }));
 }
 
@@ -662,13 +358,13 @@ ${context ? `【文脈】さっきの「${context}」と自然につながるな
   const messages = [
     { role: "system", content: system },
     ...history,
-    { role: "user", content: text },
+    { role: "user", content: text }
   ];
 
   const res = await client.chat.completions.create({
     model: "gpt-4.1-mini",
     temperature: mode === "babaa" ? 0.65 : 0.55,
-    messages,
+    messages
   });
 
   const reply = res.choices[0].message.content || "うまく言葉が出んかった";
@@ -696,9 +392,9 @@ async function reply(token, messages) {
     method: "POST",
     headers: {
       Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
-      "Content-Type": "application/json",
+      "Content-Type": "application/json"
     },
-    body: JSON.stringify({ replyToken: token, messages }),
+    body: JSON.stringify({ replyToken: token, messages })
   });
 }
 
@@ -723,7 +419,6 @@ app.post("/webhook", async (req, res) => {
 
     const text = event.message.text.trim();
     const userId = event.source.userId;
-    const mode = getMode(userId);
 
     const detectedName = extractName(text);
     if (detectedName) {
@@ -741,16 +436,6 @@ app.post("/webhook", async (req, res) => {
       continue;
     }
 
-    if (text === "まだ") {
-      await reply(event.replyToken, buildMessages(getStillResponse(mode)));
-      continue;
-    }
-
-    if (text === "しんどい") {
-      await reply(event.replyToken, buildMessages(getTiredResponse(mode)));
-      continue;
-    }
-
     if (text.includes("くじ")) {
       const current = userCoins.get(userId) || 0;
 
@@ -760,7 +445,6 @@ app.post("/webhook", async (req, res) => {
       }
 
       userCoins.set(userId, current - 10);
-      saveAllData();
 
       const r = Math.random();
 
@@ -775,8 +459,6 @@ app.post("/webhook", async (req, res) => {
         result += "\n\nコロもよう一緒に朝歩いたもんや";
         userCoins.set(userId, current + 90);
       }
-
-      saveAllData();
 
       const coins = userCoins.get(userId) || 0;
       await reply(event.replyToken, buildMessages([`くじ結果：${result}`, `コイン：${coins}`]));
@@ -803,14 +485,20 @@ app.post("/webhook", async (req, res) => {
 
       nextCoins += bonus;
       userCoins.set(userId, nextCoins);
-      saveAllData();
 
-      const rewardMessages = buildQuestRewardMessages(userId, streak, bonus, nextCoins);
-
-      await reply(event.replyToken, buildMessages(rewardMessages));
+      await reply(
+        event.replyToken,
+        buildMessages([
+          "ようやったね",
+          `${streak}日連続やね`,
+          bonus > 0 ? `ボーナス +${bonus}` : quest,
+          `コイン：${nextCoins}`
+        ])
+      );
       continue;
     }
 
+    /* モード切替 */
     if (text === "おばあちゃん") {
       setMode(userId, "obaachan");
       await reply(event.replyToken, buildMessages(["おばあちゃんモード", "話してみ"]));
@@ -859,7 +547,9 @@ app.get("/push", async (req, res) => {
     let message = "";
 
     if (type === "night") {
-      message = getNightMessage(mode, name);
+      message = name
+        ? `${name}、今日も一日おつかれさん。ようやったね。`
+        : "今日も一日おつかれさん。ようやったね。";
     } else {
       message = getMorningMessage(userId, mode, name);
     }
@@ -869,17 +559,17 @@ app.get("/push", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + process.env.LINE_CHANNEL_ACCESS_TOKEN,
+          Authorization: "Bearer " + process.env.LINE_CHANNEL_ACCESS_TOKEN
         },
         body: JSON.stringify({
           to: userId,
           messages: [
             {
               type: "text",
-              text: message,
-            },
-          ],
-        }),
+              text: message
+            }
+          ]
+        })
       });
     } catch (e) {
       console.error("push error:", e);
@@ -888,12 +578,6 @@ app.get("/push", async (req, res) => {
 
   res.send("全員送信OK");
 });
-
-/* =========================
-   起動
-========================= */
-
-loadAllData();
 
 app.listen(PORT, () => {
   console.log("AIおばあ起動:", PORT);

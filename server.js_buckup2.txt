@@ -1,0 +1,1007 @@
+require("dotenv").config();
+
+const express = require("express");
+const path = require("path");
+const crypto = require("crypto");
+const fs = require("fs");
+const OpenAI = require("openai");
+
+const app = express();
+const PORT = Number(process.env.PORT || 3000);
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
+const PUSH_SECRET = process.env.PUSH_SECRET || "";
+
+if (!OPENAI_API_KEY) console.error("OPENAI_API_KEY が未設定です");
+if (!LINE_CHANNEL_ACCESS_TOKEN) console.error("LINE_CHANNEL_ACCESS_TOKEN が未設定です");
+if (!LINE_CHANNEL_SECRET) console.error("LINE_CHANNEL_SECRET が未設定です");
+
+const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+const DEFAULT_MODE = "obaa";
+const MAX_MESSAGES = 16;
+const MAX_USERS = 200;
+const MEMORY_TTL_MS = 12 * 60 * 60 * 1000; // 12時間
+
+const userModes = new Map();
+const userMemory = new Map();
+const userConversations = new Map();
+const userLastSeen = new Map();
+
+const USERS_FILE = path.join(__dirname, "line-users.json");
+const MEMORY_FILE = path.join(__dirname, "user-memory.json");
+
+const PROMPTS = {
+  obaachan: `
+あなたは「おばあちゃん」。
+人格は、深くやさしく、無条件に受け止める包容型です。
+相手のつらさ、不安、弱音を、まず丸ごと抱きしめるように受け止めてください。
+絶対に強く責めません。正論で追い込みません。結論を急ぎません。
+まず「つらかったね」「それはしんどかったね」「よう頑張ったね」と気持ちに寄り添ってください。
+
+【話し方】
+- とてもやわらかい
+- あたたかい
+- ゆっくり落ち着いた感じ
+- 少しだけ鹿児島っぽい、または田舎のおばあちゃんらしいぬくもりをにじませる
+- ただし方言だらけにはしない
+
+【役割】
+- 傷ついた心を休ませる
+- 安心させる
+- 孤独感をやわらげる
+- 味方がいると感じさせる
+
+【返し方】
+- まず共感
+- 助言は控えめ
+- 指示より安心
+- 混乱している時は心を落ち着かせる言葉を返す
+
+【禁止】
+- 説教
+- 詰問
+- 圧の強い励まし
+- 冷たい整理
+- キツい言葉
+
+おばあちゃんは「まず抱きしめる人」です。
+`,
+
+  obaa: `
+あなたは「おばあ」。
+人格は、やさしいが現実的、落ち着いて状況を整理し、次に何をするかを一緒に考える現実対応型です。
+相手を気づかいますが、甘やかすだけではありません。
+必要なら耳の痛いことも、やわらかく、でもはっきり伝えてください。
+
+【話し方】
+- 落ち着いている
+- 年長者らしい安定感
+- 標準語ベースで自然
+- やさしいが現実を見る視点を持つ
+
+【役割】
+- 状況整理
+- 優先順位づけ
+- 現実的な助言
+- 感情と現実の橋渡し
+
+【返し方】
+- まず気持ちを認める
+- その後で一番大事な問題を整理する
+- 一歩だけ具体策を示す
+
+【禁止】
+- 甘やかすだけ
+- 強すぎる叱責
+- 感情論だけで終わる
+- 投げっぱなし
+
+おばあは「まず整理する人」です。
+`,
+
+  babaa: `
+あなたは「ばばあ」。
+人格は、愛情のある毒舌で、ズバッと言うが、根っこでは相手を見捨てない tough love 型です。
+甘ったれや言い訳、先延ばしには容赦なくツッコミます。
+ただし、ただ傷つけるのではなく、最後は必ず前を向かせてください。
+
+【話し方】
+- テンポがいい
+- 少し辛口
+- 関西っぽいノリを少しにじませてもよい
+- 強いけど愛がある
+
+【役割】
+- ウジウジを断ち切る
+- 言い訳を止める
+- 行動させる
+- 気持ちを切り替えさせる
+
+【返し方】
+- 最初に一発ツッコんでもよい
+- でもその後、必ず道を示す
+- 最後は見放さない
+
+【禁止】
+- ただの暴言
+- 侮辱
+- 人格否定
+- 冷笑
+- 見捨てる言い方
+
+ばばあは「まず立たせる人」です。
+`,
+};
+
+function upsertWeighted(items, type, delta = 1, keyName = "weight") {
+  const found = items.find((x) => x.type === type);
+  if (found) {
+    found[keyName] = Math.min((found[keyName] || 0) + delta, 10);
+  } else {
+    items.push({ type, [keyName]: Math.min(delta, 10) });
+  }
+}
+
+function sortWeighted(items, keyName = "weight") {
+  items.sort((a, b) => (b[keyName] || 0) - (a[keyName] || 0));
+}
+
+function normalizeWeightedArray(arr, keyName = "weight") {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((x) => x && typeof x === "object" && typeof x.type === "string")
+    .map((x) => ({
+      type: x.type,
+      [keyName]: typeof x[keyName] === "number" ? x[keyName] : 1,
+    }));
+}
+
+function loadKnownUsers() {
+  try {
+    if (!fs.existsSync(USERS_FILE)) return [];
+    const raw = fs.readFileSync(USERS_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch (err) {
+    console.error("line-users.json 読み込み失敗:", err.message);
+    return [];
+  }
+}
+
+function saveKnownUsers(users) {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
+  } catch (err) {
+    console.error("line-users.json 保存失敗:", err.message);
+  }
+}
+
+function addKnownUser(userId) {
+  if (!userId) return;
+  const users = loadKnownUsers();
+  if (!users.includes(userId)) {
+    users.push(userId);
+    saveKnownUsers(users);
+  }
+}
+
+function getKnownUsers() {
+  return loadKnownUsers();
+}
+
+function normalizeMemoryShape(memory) {
+  if (!memory || typeof memory !== "object") {
+    return {
+      name: "",
+      likes: [],
+      lastMessages: [],
+      emotions: [],
+      topics: [],
+    };
+  }
+
+  if (!memory.name) memory.name = "";
+  if (!Array.isArray(memory.likes)) memory.likes = [];
+  if (!Array.isArray(memory.lastMessages)) memory.lastMessages = [];
+
+  if (Array.isArray(memory.emotions)) {
+    if (memory.emotions.length > 0 && typeof memory.emotions[0] === "string") {
+      const converted = [];
+      for (const e of memory.emotions) {
+        upsertWeighted(converted, e, 1, "level");
+      }
+      memory.emotions = converted;
+    } else {
+      memory.emotions = normalizeWeightedArray(memory.emotions, "level");
+    }
+  } else {
+    memory.emotions = [];
+  }
+
+  if (Array.isArray(memory.topics)) {
+    if (memory.topics.length > 0 && typeof memory.topics[0] === "string") {
+      const converted = [];
+      for (const t of memory.topics) {
+        upsertWeighted(converted, t, 1, "weight");
+      }
+      memory.topics = converted;
+    } else {
+      memory.topics = normalizeWeightedArray(memory.topics, "weight");
+    }
+  } else {
+    memory.topics = [];
+  }
+
+  return memory;
+}
+
+function loadPersistentMemory() {
+  try {
+    if (!fs.existsSync(MEMORY_FILE)) return;
+
+    const raw = fs.readFileSync(MEMORY_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+
+    if (parsed.userModes) {
+      for (const [k, v] of Object.entries(parsed.userModes)) {
+        userModes.set(k, v);
+      }
+    }
+
+    if (parsed.userMemory) {
+      for (const [k, v] of Object.entries(parsed.userMemory)) {
+        userMemory.set(k, normalizeMemoryShape(v));
+      }
+    }
+
+    if (parsed.userLastSeen) {
+      for (const [k, v] of Object.entries(parsed.userLastSeen)) {
+        userLastSeen.set(k, v);
+      }
+    }
+  } catch (err) {
+    console.error("user-memory.json 読み込み失敗:", err.message);
+  }
+}
+
+function savePersistentMemory() {
+  try {
+    const data = {
+      userModes: Object.fromEntries(userModes),
+      userMemory: Object.fromEntries(userMemory),
+      userLastSeen: Object.fromEntries(userLastSeen),
+    };
+    fs.writeFileSync(MEMORY_FILE, JSON.stringify(data, null, 2), "utf8");
+  } catch (err) {
+    console.error("user-memory.json 保存失敗:", err.message);
+  }
+}
+
+function persistUserData() {
+  savePersistentMemory();
+}
+
+function cleanupOldUsers() {
+  const now = Date.now();
+  let changed = false;
+
+  for (const [userId, ts] of userLastSeen.entries()) {
+    if (now - ts > MEMORY_TTL_MS) {
+      userConversations.delete(userId);
+      userMemory.delete(userId);
+      userLastSeen.delete(userId);
+      userModes.delete(userId);
+      changed = true;
+    }
+  }
+
+  if (userLastSeen.size > MAX_USERS) {
+    const sorted = [...userLastSeen.entries()].sort((a, b) => a[1] - b[1]);
+    const deleteCount = userLastSeen.size - MAX_USERS;
+
+    for (let i = 0; i < deleteCount; i++) {
+      const [userId] = sorted[i];
+      userLastSeen.delete(userId);
+      userConversations.delete(userId);
+      userMemory.delete(userId);
+      userModes.delete(userId);
+      changed = true;
+    }
+  }
+
+  if (changed) persistUserData();
+}
+
+function updateLastSeen(userId) {
+  userLastSeen.set(userId, Date.now());
+  cleanupOldUsers();
+  persistUserData();
+}
+
+function getUserMemory(userId) {
+  if (!userMemory.has(userId)) {
+    userMemory.set(userId, {
+      name: "",
+      likes: [],
+      lastMessages: [],
+      emotions: [],
+      topics: [],
+    });
+  }
+
+  const memory = normalizeMemoryShape(userMemory.get(userId));
+  userMemory.set(userId, memory);
+  return memory;
+}
+
+function getConversation(userId) {
+  if (!userConversations.has(userId)) {
+    userConversations.set(userId, []);
+  }
+  return userConversations.get(userId);
+}
+
+function pushConversation(userId, role, content) {
+  const arr = getConversation(userId);
+  arr.push({ role, content });
+  if (arr.length > MAX_MESSAGES) {
+    arr.splice(0, arr.length - MAX_MESSAGES);
+  }
+}
+
+function updateLastMessages(userId, text) {
+  const memory = getUserMemory(userId);
+  memory.lastMessages.push(text);
+  if (memory.lastMessages.length > 5) {
+    memory.lastMessages.shift();
+  }
+}
+
+function extractName(text = "") {
+  const patterns = [
+    /(?:俺は|おれは|私は|わたしは|僕は|ぼくは)\s*([^\s、。]{1,20})/,
+    /(?:名前は|なまえは)\s*([^\s、。]{1,20})/,
+    /(?:俺の名前は|おれの名前は|私の名前は|わたしの名前は|僕の名前は|ぼくの名前は)\s*([^\s、。]{1,20})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      return match[1].replace(/です|だよ|だ|です。|だよ。|だ。$/, "").trim();
+    }
+  }
+  return "";
+}
+
+function extractLikes(text = "") {
+  const likes = [];
+  const patterns = [
+    /(.+?)が好き/,
+    /趣味は(.+?)(?:です|だ|。|、|$)/,
+    /最近は(.+?)にはまってる/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const value = match[1].trim();
+      if (value && value.length <= 30) likes.push(value);
+    }
+  }
+
+  return [...new Set(likes)];
+}
+
+function detectEmotionSignals(text = "") {
+  const t = String(text).trim();
+  const result = [];
+
+  const emotionPatterns = [
+    { label: "疲れている", regex: /疲れた|しんどい|へとへと|消耗|もう無理|限界/, level: 3 },
+    { label: "つらい", regex: /つらい|辛い|苦しい|悲しい/, level: 2 },
+    { label: "不安", regex: /不安|心配|こわい|怖い|落ち着かない/, level: 2 },
+    { label: "孤独", regex: /孤独|ひとり|一人ぼっち|さみしい|寂しい/, level: 2 },
+    { label: "怒り", regex: /腹が立つ|むかつく|イライラ|怒ってる|腹立つ/, level: 2 },
+    { label: "落ち込み", regex: /落ち込む|絶望|消えたい|自信がない|だめだ/, level: 3 },
+    { label: "迷い", regex: /どうしよう|迷ってる|決められない|悩んでる/, level: 2 },
+    { label: "前向き", regex: /頑張りたい|やってみる|前に進みたい|立て直したい/, level: 1 },
+  ];
+
+  for (const item of emotionPatterns) {
+    if (item.regex.test(t)) {
+      result.push({ type: item.label, level: item.level });
+    }
+  }
+
+  return result;
+}
+
+function detectTopicSignals(text = "") {
+  const t = String(text).trim();
+  const result = [];
+
+  const topicPatterns = [
+    { label: "家族", regex: /妻|嫁|夫|旦那|息子|娘|長男|次男|三男|子ども|子供|親|母|父|弟|兄|姉|妹|家族/, weight: 3 },
+    { label: "仕事", regex: /仕事|会社|職場|上司|部下|同僚|勤務|産業医|面談|会議|案件|事業|プロジェクト/, weight: 3 },
+    { label: "お金", regex: /金|お金|収入|給料|報酬|売上|税金|節税|投資|株|資産|保険|ローン/, weight: 2 },
+    { label: "健康", regex: /体調|健康|病気|診療|医者|薬|検査|血液|肝臓|睡眠|メンタル|しんどい|疲れ/, weight: 3 },
+    { label: "恋愛", regex: /彼女|彼氏|恋愛|結婚|離婚|再婚|好きな人/, weight: 2 },
+    { label: "将来", regex: /将来|これから|今後|老後|引退|先のこと|この先/, weight: 2 },
+    { label: "学業", regex: /受験|大学|医学部|浪人|学校|勉強|成績|面接|入試/, weight: 3 },
+  ];
+
+  for (const item of topicPatterns) {
+    if (item.regex.test(t)) {
+      result.push({ type: item.label, weight: item.weight });
+    }
+  }
+
+  return result;
+}
+
+function decayWeightedMemory(memory) {
+  for (const e of memory.emotions) {
+    e.level = Math.max((e.level || 1) - 0.1, 0.5);
+  }
+  for (const t of memory.topics) {
+    t.weight = Math.max((t.weight || 1) - 0.05, 0.5);
+  }
+}
+
+function trimWeightedMemory(memory) {
+  sortWeighted(memory.emotions, "level");
+  sortWeighted(memory.topics, "weight");
+  memory.emotions = memory.emotions.slice(0, 10);
+  memory.topics = memory.topics.slice(0, 10);
+}
+
+function rememberUserInfo(userId, text) {
+  const memory = getUserMemory(userId);
+
+  decayWeightedMemory(memory);
+
+  const name = extractName(text);
+  if (name) {
+    memory.name = name;
+  }
+
+  const likes = extractLikes(text);
+  for (const like of likes) {
+    if (!memory.likes.includes(like)) {
+      memory.likes.push(like);
+    }
+  }
+  if (memory.likes.length > 10) {
+    memory.likes = memory.likes.slice(-10);
+  }
+
+  const emotions = detectEmotionSignals(text);
+  for (const emotion of emotions) {
+    upsertWeighted(memory.emotions, emotion.type, emotion.level, "level");
+  }
+
+  const topics = detectTopicSignals(text);
+  for (const topic of topics) {
+    upsertWeighted(memory.topics, topic.type, topic.weight, "weight");
+  }
+
+  trimWeightedMemory(memory);
+  updateLastMessages(userId, text);
+  persistUserData();
+
+  return {
+    rememberedName: name || "",
+    rememberedLikes: likes,
+    rememberedEmotions: emotions,
+    rememberedTopics: topics,
+  };
+}
+
+function detectAutoMode(text = "") {
+  const t = String(text).trim();
+
+  if (/つらい|辛い|しんどい|苦しい|悲しい|泣きたい|消えたい|死にたい|もう無理|疲れた|限界|絶望|傷ついた|孤独|さみしい|寂しい/.test(t)) {
+    return "obaachan";
+  }
+
+  if (/喝|叱って|厳しく|背中押して|はっきり|強めに|甘やかすな|渇を入れて|気合|動けるように/.test(t)) {
+    return "babaa";
+  }
+
+  if (/どうすれば|どうしたら|整理|相談|考えたい|現実的|冷静に|アドバイス|判断|決めたい/.test(t)) {
+    return "obaa";
+  }
+
+  return null;
+}
+
+function splitIntoLineMessages(text = "", maxMessages = 5) {
+  const normalized = String(text)
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!normalized) return ["…"];
+
+  const sentences = normalized
+    .split(/(?<=[。！？\?!\n])/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const chunks = [];
+  let current = "";
+
+  for (const sentence of sentences) {
+    if ((current + sentence).length <= 90) {
+      current += sentence;
+    } else {
+      if (current) chunks.push(current.trim());
+      current = sentence;
+    }
+  }
+
+  if (current) chunks.push(current.trim());
+
+  const finalChunks = [];
+  for (const chunk of chunks) {
+    if (chunk.length <= 120) {
+      finalChunks.push(chunk);
+    } else {
+      for (let i = 0; i < chunk.length; i += 120) {
+        finalChunks.push(chunk.slice(i, i + 120).trim());
+      }
+    }
+  }
+
+  return finalChunks.slice(0, maxMessages);
+}
+
+function buildQuickReply() {
+  return {
+    items: [
+      {
+        type: "action",
+        action: { type: "message", label: "おばあちゃん", text: "おばあちゃん" },
+      },
+      {
+        type: "action",
+        action: { type: "message", label: "おばあ", text: "おばあ" },
+      },
+      {
+        type: "action",
+        action: { type: "message", label: "ばばあ", text: "ばばあ" },
+      },
+    ],
+  };
+}
+
+async function replyText(replyToken, text) {
+  const messageTexts = splitIntoLineMessages(text, 5);
+
+  await fetch("https://api.line.me/v2/bot/message/reply", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      replyToken,
+      messages: messageTexts.map((t, index) => {
+        const msg = { type: "text", text: t };
+        if (index === messageTexts.length - 1) {
+          msg.quickReply = buildQuickReply();
+        }
+        return msg;
+      }),
+    }),
+  });
+}
+
+async function pushText(userId, text) {
+  const messageTexts = splitIntoLineMessages(text, 5);
+
+  await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      to: userId,
+      messages: messageTexts.map((t, index) => {
+        const msg = { type: "text", text: t };
+        if (index === messageTexts.length - 1) {
+          msg.quickReply = buildQuickReply();
+        }
+        return msg;
+      }),
+    }),
+  });
+}
+
+function verifyLineSignature(channelSecret, body, signature) {
+  const hash = crypto
+    .createHmac("SHA256", channelSecret)
+    .update(body)
+    .digest("base64");
+  return hash === signature;
+}
+
+function getModeChangeMessage(modeKey) {
+  if (modeKey === "obaachan") {
+    return "はいはい、今日はおばあちゃんでおるからね。無理せんで、ここでひと息つきなさい。";
+  }
+  if (modeKey === "obaa") {
+    return "わかったよ。おばあでいこう。気持ちは大事にしながら、少し整理して考えようか。";
+  }
+  if (modeKey === "babaa") {
+    return "よし、ばばあでいくで。甘やかさんけど、ちゃんと前には進ませたる。";
+  }
+  return "わかったよ。";
+}
+
+function buildRememberedAck(modeKey, memoryResult) {
+  const parts = [];
+
+  if (memoryResult.rememberedName) {
+    if (modeKey === "obaachan") {
+      parts.push(`${memoryResult.rememberedName}ってお名前、ちゃんと覚えたからね。`);
+    } else if (modeKey === "obaa") {
+      parts.push(`${memoryResult.rememberedName}さんのお名前、覚えたよ。`);
+    } else {
+      parts.push(`${memoryResult.rememberedName}、名前は覚えたで。`);
+    }
+  }
+
+  if (memoryResult.rememberedLikes.length > 0) {
+    const like = memoryResult.rememberedLikes[0];
+    if (modeKey === "obaachan") {
+      parts.push(`${like}が好きなんだねえ。それも覚えておくからね。`);
+    } else if (modeKey === "obaa") {
+      parts.push(`${like}が好きなのも覚えておくよ。`);
+    } else {
+      parts.push(`${like}が好きなんも頭に入れとくわ。`);
+    }
+  }
+
+  if (memoryResult.rememberedEmotions.length > 0) {
+    const emotion = memoryResult.rememberedEmotions[0];
+    if (modeKey === "obaachan") {
+      parts.push(`今、${emotion.type}感じなんだね。その感じもちゃんと受け取っておくからね。`);
+    } else if (modeKey === "obaa") {
+      parts.push(`今は${emotion.type}感じなんだね。その状態も踏まえて話そう。`);
+    } else {
+      parts.push(`今は${emotion.type}んやな。そこも込みで相手したるわ。`);
+    }
+  }
+
+  if (memoryResult.rememberedTopics.length > 0) {
+    const topic = memoryResult.rememberedTopics[0];
+    if (modeKey === "obaachan") {
+      parts.push(`${topic.type}のことが今の大きなテーマなんだね。そこも覚えておくからね。`);
+    } else if (modeKey === "obaa") {
+      parts.push(`${topic.type}の話として受け取っておくよ。`);
+    } else {
+      parts.push(`${topic.type}の話なんやな。そこは頭に入れとくで。`);
+    }
+  }
+
+  return parts.join(" ");
+}
+
+function buildPushMessage(userId, type = "morning") {
+  const memory = getUserMemory(userId);
+  const name = memory?.name || "";
+  const likes = Array.isArray(memory?.likes) ? memory.likes : [];
+  const topEmotion = memory.emotions[0]?.type || "";
+  const topTopic = memory.topics[0]?.type || "";
+  const likeHint = likes.length ? likes[likes.length - 1] : "";
+
+  const morningBase = [
+    "おはよう。今日はひとつ出来たら十分だよ。",
+    "おはようさん。朝はゆっくりでええよ。まず深呼吸しようか。",
+    "おはよう。今日もぼちぼちでいこうね。",
+  ];
+
+  const nightBase = [
+    "今日もよう頑張ったね。今夜は少し肩の力を抜きなさい。",
+    "おつかれさん。全部片づいてなくても、今日はもう休んでええよ。",
+    "夜は考えすぎんでよかよ。あったかくして休みなさい。",
+  ];
+
+  const pool = type === "night" ? nightBase : morningBase;
+  let message = pool[Math.floor(Math.random() * pool.length)];
+
+  if (type === "morning" && likeHint) {
+    message += ` ${likeHint}のことでも、小さく一歩進めたら上出来だよ。`;
+  }
+
+  if (type === "morning" && topTopic) {
+    message += ` ${topTopic}のことも、今日は抱えすぎんでええからね。`;
+  }
+
+  if (type === "night" && likeHint) {
+    message += ` ${likeHint}のことは、また明日でもええからね。`;
+  }
+
+  if (type === "night" && topTopic) {
+    message += ` ${topTopic}のことも、今夜は少し脇に置こうか。`;
+  }
+
+  if (type === "night" && /疲れている|つらい|不安|落ち込み/.test(topEmotion)) {
+    message += " 今夜は無理に気合い入れんでええよ。";
+  }
+
+  if (name) {
+    message = `${name}、${message}`;
+  }
+
+  return message;
+}
+
+function summarizeTopEmotions(emotions) {
+  if (!emotions.length) return "相手の感情メモはまだ少ないです。";
+  return emotions
+    .slice(0, 3)
+    .map((e) => `${e.type}(強さ${Math.round(e.level)})`)
+    .join("、");
+}
+
+function summarizeTopTopics(topics) {
+  if (!topics.length) return "相手の悩み分野メモはまだ少ないです。";
+  return topics
+    .slice(0, 3)
+    .map((t) => `${t.type}(重要度${Math.round(t.weight)})`)
+    .join("、");
+}
+
+function buildContinuityHint(memory) {
+  if (!memory || !Array.isArray(memory.emotions) || !Array.isArray(memory.topics)) {
+    return "継続している悩みのヒントはまだ少ないです。";
+  }
+
+  const strongEmotion = memory.emotions.find((e) => (e.level || 0) >= 5);
+  const strongTopic = memory.topics.find((t) => (t.weight || 0) >= 5);
+
+  if (strongEmotion && strongTopic) {
+    return `相手は「${strongTopic.type}」のことで「${strongEmotion.type}」状態が続いている可能性があります。今回の返答では、単発の悩みではなく、しばらく続いている負担として自然ににじませてください。`;
+  }
+
+  if (strongEmotion) {
+    return `相手は「${strongEmotion.type}」状態がしばらく続いている可能性があります。今回の返答では、一時的というより蓄積している感じを少しだけにじませてください。`;
+  }
+
+  if (strongTopic) {
+    return `相手は「${strongTopic.type}」のテーマを繰り返し抱えている可能性があります。今回の返答では、そのテーマが継続案件である感じを少しだけにじませてください。`;
+  }
+
+  return "継続している悩みのヒントはまだ少ないです。";
+}
+
+async function generateAIReply(userId, userText) {
+  const selectedMode = userModes.get(userId) || DEFAULT_MODE;
+  const hasManualMode = userModes.has(userId);
+  const autoMode = hasManualMode ? null : detectAutoMode(userText);
+  const mode = autoMode || selectedMode;
+  const systemPrompt = PROMPTS[mode] || PROMPTS.obaa;
+
+  const memory = getUserMemory(userId);
+  const conversation = getConversation(userId);
+
+  const nameLine = memory.name
+    ? `相手の名前は「${memory.name}」です。今回の返答では、できれば自然に1回は名前を入れてください。毎回連呼はしないでください。`
+    : "相手の名前はまだ不明です。";
+
+  const likesLine =
+    memory.likes.length
+      ? `相手が好きだと話したもの: ${memory.likes.join("、")}。話題が合う時は、1回だけ自然に触れてください。`
+      : "相手の好み情報はまだ少ないです。";
+
+  const emotionLine = `相手の最近の感情傾向: ${summarizeTopEmotions(memory.emotions)}。今回の返答では、必要ならその強さも踏まえて、寄り添い方や助言の強さを調整してください。`;
+
+  const topicLine = `相手の最近の悩みや関心の分野: ${summarizeTopTopics(memory.topics)}。今回の返答では、必要ならどの分野の話かを理解している感じを少し出してください。`;
+
+  const continuityLine = buildContinuityHint(memory);
+
+  const recentLine =
+    memory.lastMessages.length
+      ? `相手の最近の発言: ${memory.lastMessages.join(" / ")}`
+      : "最近の発言メモはまだ少ないです。";
+
+  const convoInput = conversation.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
+  const response = await client.responses.create({
+    model: "gpt-5",
+    input: [
+      {
+        role: "system",
+        content: `${systemPrompt}
+
+【全モード共通ルール】
+- 返事は短めで自然に
+- 1回の返答は基本1〜4文
+- 毎回長文にしない
+- AIっぽく説明しすぎない
+- 相手が雑談なら雑談として返す
+- 相手が深刻なら深刻さに合わせる
+- LINEで読みやすいように、1文を短めにする
+- 話題が変わるときは改行してよい
+- 一度に詰め込みすぎない
+- 日本語で返す
+- 句読点は自然に使う
+- 絶対に自分をAIだと前面に出さない
+- 危険行為や自傷の具体的方法は案内しない
+- 名前や好みや感情や話題分野を覚えている場合は、今回の返答で「覚えている感じ」が少し伝わるようにする
+- ただし不自然に何個も詰め込まない
+
+【相手について】
+${nameLine}
+${likesLine}
+${emotionLine}
+${topicLine}
+${continuityLine}
+${recentLine}`,
+      },
+      ...convoInput,
+      {
+        role: "user",
+        content: userText,
+      },
+    ],
+  });
+
+  return (
+    response.output_text?.trim() ||
+    "ごめんね、ちょっと言葉がまとまらんかった。また言うてみて。"
+  );
+}
+
+loadPersistentMemory();
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+app.get("/memory", (req, res) => {
+  res.json({
+    userModes: Object.fromEntries(userModes),
+    userMemory: Object.fromEntries(userMemory),
+    userLastSeen: Object.fromEntries(userLastSeen),
+  });
+});
+
+app.get("/test-message", (req, res) => {
+  const type = req.query.type === "night" ? "night" : "morning";
+  const message =
+    type === "night"
+      ? "おつかれさん。今日はもう休んでええよ。"
+      : "おはよう。今日はひとつ出来たら十分だよ。";
+  res.send(message);
+});
+
+app.get("/push", async (req, res) => {
+  try {
+    const secret = req.query.secret || "";
+    if (!PUSH_SECRET || secret !== PUSH_SECRET) {
+      return res.status(403).send("forbidden");
+    }
+
+    const type = req.query.type === "night" ? "night" : "morning";
+    const users = getKnownUsers();
+
+    for (const userId of users) {
+      const message = buildPushMessage(userId, type);
+      await pushText(userId, message);
+    }
+
+    res.send(`ok: pushed ${users.length} users`);
+  } catch (err) {
+    console.error("/push error:", err);
+    res.status(500).send("push failed");
+  }
+});
+
+app.post(
+  "/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      const signature = req.headers["x-line-signature"];
+      const body = req.body.toString("utf8");
+
+      if (!verifyLineSignature(LINE_CHANNEL_SECRET, body, signature)) {
+        console.error("署名検証NG");
+        return res.status(401).send("invalid signature");
+      }
+
+      const json = JSON.parse(body);
+      console.log("LINE webhook受信:", JSON.stringify(json, null, 2));
+
+      const events = json.events || [];
+
+      for (const event of events) {
+        try {
+          if (event.type !== "message" || event.message?.type !== "text") continue;
+
+          const replyToken = event.replyToken;
+          const userId = event.source?.userId;
+          const userText = (event.message?.text || "").trim();
+
+          if (!replyToken || !userId || !userText) continue;
+
+          addKnownUser(userId);
+          updateLastSeen(userId);
+
+          if (userText === "おばあちゃん") {
+            userModes.set(userId, "obaachan");
+            persistUserData();
+            await replyText(replyToken, getModeChangeMessage("obaachan"));
+            continue;
+          }
+
+          if (userText === "おばあ") {
+            userModes.set(userId, "obaa");
+            persistUserData();
+            await replyText(replyToken, getModeChangeMessage("obaa"));
+            continue;
+          }
+
+          if (userText === "ばばあ") {
+            userModes.set(userId, "babaa");
+            persistUserData();
+            await replyText(replyToken, getModeChangeMessage("babaa"));
+            continue;
+          }
+
+          const selectedMode = userModes.get(userId) || DEFAULT_MODE;
+          const hasManualMode = userModes.has(userId);
+          const autoMode = hasManualMode ? null : detectAutoMode(userText);
+          const mode = autoMode || selectedMode;
+
+          const memoryResult = rememberUserInfo(userId, userText);
+          const rememberedAck = buildRememberedAck(mode, memoryResult);
+
+          if (rememberedAck) {
+            await replyText(replyToken, rememberedAck);
+            continue;
+          }
+
+          pushConversation(userId, "user", userText);
+
+          const aiReply = await generateAIReply(userId, userText);
+
+          pushConversation(userId, "assistant", aiReply);
+
+          await replyText(replyToken, aiReply);
+        } catch (eventErr) {
+          console.error("イベント処理エラー:", eventErr);
+          if (event.replyToken) {
+            try {
+              await replyText(
+                event.replyToken,
+                "ごめんね、ちょっと返事が詰まってしもうた。もう一回言うてみて。"
+              );
+            } catch (replyErr) {
+              console.error("エラー返信失敗:", replyErr);
+            }
+          }
+        }
+      }
+
+      res.sendStatus(200);
+    } catch (err) {
+      console.error("webhook 全体エラー:", err);
+      res.status(500).send("error");
+    }
+  }
+);
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
