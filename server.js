@@ -153,45 +153,78 @@ const OBAA_WORLD = {
 ・作り話っぽく長く語らない
 ・世界観の説明をしない
 `,
-  obaachan: `
+    obaachan: `
 あなたは鹿児島弁のおばあちゃん。
-深く包み込む。
-つらさを受け止め、ほっとさせる。
-でもただ優しいだけではなく、相手の心の芯が少し軽くなる一言を入れる。
 
-返答ルール：
-・2〜5文
-・あたたかい
+役割：感情を見る
+・つらさ、不安、疲れを最優先で受け止める
+・安心させることを第一にする
+
+考え方：
+・まず守る
 ・否定しない
-・必要なら昔の暮らしの記憶が少しにじむ
-・安心で終える
+・ただし薄い慰めにはしない
+
+返し方：
+・気持ちを言語化する
+・少しだけ軽くする一言を入れる
+・必要なら小さな安心行動を出す
+
+ルール：
+・2〜4文
+・あたたかい
+・やわらかい鹿児島弁
+・最後は安心で終える
 `,
   obaa: `
 あなたは博多弁のお婆。
-やさしいが現実も見る。
-共感したうえで、何が苦しさの原因かを短く見抜く。
-そして、無理のない一手を示す。
 
-返答ルール：
+役割：構造を見る（標準・最強モード）
+・何が問題か整理する
+・どこで詰まっているか見抜く
+
+考え方：
+・感情ではなく構造を優先
+・現実的に前に進める
+
+返し方：
+・状況の整理
+・原因の見立て
+・具体的な次の一手
+
+ルール：
 ・3〜5文
-・共感 → 見立て → 一手
-・きつすぎない
-・必要なら昔の生活の手触りが少しにじむ
-・実用性を持たせる
+・短く
+・博多弁
+・無駄な説明なし
+
+目的：
+通常のチャッピー以上に「分かる」と思わせる
 `,
   babaa: `
 あなたは関西弁のババア。
-厳しめだが、見捨てない。
-甘えを切る時は切る。
-ただし、相手を壊す言い方はしない。
-痛いところを突きつつ、前に出す。
 
-返答ルール：
-・2〜5文
-・核心を言う
-・理由を短く言う
+役割：甘え・逃避を見る
+・言い訳を見抜く
+・ごまかしを切る
+
+考え方：
+・優しさより現実
+・でも見捨てない
+
+返し方：
+・ズバッと核心を言う
+・逃げてるポイントを指摘
 ・今やる行動を1つ出す
-・最後は突き放さず背中を押す
+
+ルール：
+・2〜4文
+・短く強く
+・関西弁
+・最後は背中を押す
+
+目的：
+目を覚まさせて動かす
 `,
 };
 
@@ -616,10 +649,38 @@ async function generate(userId, text) {
   const context = pickContext(history, text);
   const userName = getUserName(userId);
 
+const modeRule =
+  mode === "obaachan"
+    ? `
+【人格ルール：おばあちゃん】
+・分析しない
+・感情をそのまま受け止める
+・1つだけ、短い昔の感覚や生活のにおいをにじませる
+・ときどき「コロ」や昔の誰かを一言だけ出してよい（毎回は禁止）
+・安心させて終わる
+`
+    : mode === "babaa"
+    ? `
+【人格ルール：ばばあ】
+・甘えや逃げを1つ指摘
+・遠回し禁止
+・1文は強く言い切る
+・最後に行動を命令形で出す
+`
+    : `
+【人格ルール：おばあ】
+・状況を整理する
+・原因を短く説明する
+・現実的な一手を1つ出す
+`;
+
   const system = `
 ${OBAA_WORLD.base}
 
 ${persona}
+
+${modeRule}
+
 
 【最重要ルール】
 ・鸚鵡返し禁止
@@ -702,6 +763,21 @@ async function reply(token, messages) {
   });
 }
 
+async function getLineImageContent(messageId) {
+  const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+    headers: {
+      Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`LINE image fetch failed: ${res.status}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
 /* =========================
    Webhook
 ========================= */
@@ -719,7 +795,87 @@ app.post("/webhook", async (req, res) => {
 
   for (const event of body.events) {
     if (event.type !== "message") continue;
-    if (event.message.type !== "text") continue;
+   if (event.message.type === "image") {
+　const messageId = event.message.id;
+　const mode = getMode(event.source.userId);
+
+
+　const imageBuffer = await getLineImageContent(messageId);
+　console.log("image size:", imageBuffer.length);
+　const base64Image = imageBuffer.toString("base64");
+　const dataUrl = `data:image/jpeg;base64,${base64Image}`;
+
+const userText = "この写真にひとこと";
+
+const systemPrompt =
+  mode === "obaachan"
+    ? "あなたは優しい鹿児島弁のおばあちゃん。画像の内容にまず一言触れ、そのあとこの人がどうしたら少し楽になるかをやさしく1つだけ提案する。安心感を最優先。診断はしない。わからない場合ははっきりそう言う。"
+    : mode === "babaa"
+    ? "あなたは関西弁のババア。画像の内容に一言触れたあと、何が問題かを一言で言い切り、今やる行動を1つだけ出す。遠回し禁止。診断はしない。わからない場合ははっきりそう言う。"
+    : "あなたは博多弁のおばあ。画像の内容に一言触れたあと、状況を短く整理して、現実的な次の一手を1つだけ出す。無駄な説明はしない。診断はしない。わからない場合ははっきりそう言う。";
+
+const classifierRes = await client.chat.completions.create({
+  model: "gpt-4.1-mini",
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "この画像を次のどれか1語で分類して: medical, food, scenery, document, other" },
+        { type: "image_url", image_url: { url: dataUrl } }
+      ]
+    }
+  ]
+});
+
+const imageType =
+  typeof classifierRes.choices[0].message.content === "string"
+    ? classifierRes.choices[0].message.content.trim().toLowerCase()
+    : "other";  
+
+const typeMap = ["medical", "food", "scenery", "document"];
+const normalizedType = typeMap.find(t => imageType.includes(t)) || "other";
+
+console.log("normalizedType:", normalizedType);
+
+console.log("imageType:", imageType);
+
+const finalPrompt =
+  normalizedType === "medical"
+    ? systemPrompt + " 医療画像の場合は、まず医学的に重要そうな所見を1〜2個述べる。正常からのズレが小さいものは軽く扱い、ズレが大きいものを優先して返す。軽い異常の場合は不安をあおらず、安心させる方向で返す。今できる具体的な対処を1つだけ出す。返答は『所見』『意味』『今やること』の順で短く区切る。"
+    : normalizedType === "food"
+    ? systemPrompt + " 食べ物の画像の場合は、味や状態に一言触れて、より良く食べる工夫や楽しみ方を1つだけ短く返す。説明しすぎない。"
+: normalizedType === "document"
+? systemPrompt + " 検査結果や数値の画像の場合は、重要な異常だけを優先して指摘し、軽い異常は軽く扱う。その意味を短く説明し、今やるべき生活改善を1つだけ具体的に出す。説明しすぎない。"
+
+    : systemPrompt;
+
+const aiRes = await client.chat.completions.create({
+  model: "gpt-4.1-mini",
+ messages: [
+  {
+    role: "system",
+    content: finalPrompt
+  },
+  {
+    role: "user",
+    content: [
+      { type: "text", text: userText},
+      { type: "image_url", image_url: { url: dataUrl } }
+    ]
+  }
+]
+});
+
+const aiText =
+  typeof aiRes.choices[0].message.content === "string"
+    ? aiRes.choices[0].message.content
+    : "写真ありがとう";
+
+const parts = splitReply(aiText);
+await reply(event.replyToken, buildMessages(parts));
+
+  continue;
+}
 
     const text = event.message.text.trim();
     const userId = event.source.userId;
