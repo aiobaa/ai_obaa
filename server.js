@@ -727,7 +727,7 @@ ${context ? `【文脈】さっきの「${context}」と自然につながるな
   ];
 
   const res = await client.chat.completions.create({
-    model: "gpt-4.1-mini",
+    model: "gpt-4.1",
     temperature: mode === "babaa" ? 0.65 : 0.55,
     messages,
   });
