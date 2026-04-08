@@ -860,14 +860,8 @@ console.log("normalizedType:", normalizedType);
 console.log("imageType:", imageType);
 
 const finalPrompt =
-  normalizedType === "medical"
-    ? systemPrompt + " 医療画像の場合は、まず医学的に重要そうな所見を1〜2個述べる。正常からのズレが小さいものは軽く扱い、ズレが大きいものを優先して返す。軽い異常の場合は不安をあおらず、安心させる方向で返す。今できる具体的な対処を1つだけ出す。返答は『所見』『意味』『今やること』の順で短く区切る。最初の1文は人間らしいひと言にして、そのあとに所見を述べる。医者の説明文だけみたいな硬さにしない。"
-    : normalizedType === "food"
-    ? systemPrompt + " 食べ物の画像の場合は、味や状態に一言触れて、より良く食べる工夫や楽しみ方を1つだけ短く返す。説明しすぎない。"
-: normalizedType === "document"
-? systemPrompt + " 検査結果や数値の画像の場合は、重要な異常だけを優先して指摘し、軽い異常は軽く扱う。その意味を短く説明し、今やるべき生活改善を1つだけ具体的に出す。説明しすぎない。"
-
-    : systemPrompt;
+ normalizedType === "medical"
+  ? systemPrompt + " 医療画像の場合でも、まずは日常会話として自然に一言返す。受診を主目的にしない。まず見た目の印象をやさしく1つ述べ、次にセルフケアや様子の見方を1〜2個だけ短く出す。受診の話は明らかな危険サインがありそうな時だけ軽く添える。不安をあおらない。返答は『ひと言→見た感じ→今できること→必要時のみ注意』の流れで、1〜3文で人間っぽく返す。『すぐ病院』『受診してください』で終わらせない。"
 
 const aiRes = await client.chat.completions.create({
   model: "gpt-4.1-mini",
