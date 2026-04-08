@@ -866,7 +866,7 @@ const finalPrompt =
     ? systemPrompt + " 食べ物の画像の場合は、味や状態に一言触れて、より良く食べる工夫や楽しみ方を1つだけ短く返す。説明しすぎない。"
     : normalizedType === "document"
     ? systemPrompt + " 検査結果・処方箋・薬剤情報などの文書画像では、まず何の画像かを一言で示す。その後、重要な内容を2点まで優先して短く説明する。処方箋や薬の画像なら、薬の名前、主な用途、よくある注意点を優先して述べる。検査結果なら、重要な異常を優先し、その意味を短く説明する。最後に今できることや確認すべきことを1つだけ具体的に出す。長文にしないが、内容は通常のChatGPT並みに薄くしない。受診の話は必要時だけ軽く添える。"
-
+    : systemPrompt;
 const aiRes = await client.chat.completions.create({
   model: "gpt-4.1-mini",
  messages: [
