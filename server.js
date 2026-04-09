@@ -901,6 +901,7 @@ const aiRes = await client.chat.completions.create({
 });
 
 const aiText =
+rememberUserInfo(userId, userText);
   typeof aiRes.choices[0].message.content === "string"
     ? aiRes.choices[0].message.content
     : "写真ありがとう";
