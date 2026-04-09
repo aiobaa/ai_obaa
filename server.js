@@ -1134,7 +1134,7 @@ continue;
 }
 
     const text = event.message.text.trim();
-    const userId = event.source.userId;
+    
     const mode = getMode(userId);
 
     const detectedName = extractName(text);
