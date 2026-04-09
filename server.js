@@ -902,6 +902,21 @@ const aiRes = await client.chat.completions.create({
 
 const aiText =
 rememberUserInfo(userId, userText);
+// 状態タグ保存（最小版）
+if (!globalThis.userStateTags) {
+  globalThis.userStateTags = new Map();
+}
+
+const tagText = (userText || "").toLowerCase();
+const tags = globalThis.userStateTags.get(userId) || [];
+
+if (tagText.match(/疲|だる|しんど|眠い/)) tags.push("fatigue");
+if (tagText.match(/寝不足|眠れ|夜更かし/)) tags.push("sleep");
+if (tagText.match(/食べ過ぎ|外食|脂っこい/)) tags.push("diet_high");
+if (tagText.match(/運動|歩いた|ジム/)) tags.push("active");
+if (tagText.match(/ストレス|不安|イライラ/)) tags.push("mental");
+
+globalThis.userStateTags.set(userId, tags.slice(-20));
   typeof aiRes.choices[0].message.content === "string"
     ? aiRes.choices[0].message.content
     : "写真ありがとう";
