@@ -922,6 +922,27 @@ globalThis.userStateTags.set(userId, tags.slice(-20));
     : "写真ありがとう";
 
 let finalText = aiText;
+// 最近の傾向を一言だけ足す
+const stateTags = globalThis.userStateTags?.get(userId) || [];
+const recentTags = stateTags.slice(-10);
+
+if (recentTags.length > 0) {
+  const fatigueCount = recentTags.filter((t) => t === "fatigue").length;
+  const sleepCount = recentTags.filter((t) => t === "sleep").length;
+  const dietHighCount = recentTags.filter((t) => t === "diet_high").length;
+  const activeCount = recentTags.filter((t) => t === "active").length;
+  const mentalCount = recentTags.filter((t) => t === "mental").length;
+
+  let trendComment = "";
+
+  if (fatigueCount >= 2) trendComment = "<<<SEP>>>最近ちょっと疲れが続いとる感じあるね。";
+  else if (sleepCount >= 2) trendComment = "<<<SEP>>>このところ少し睡眠が乱れ気味かもしれんね。";
+  else if (dietHighCount >= 2) trendComment = "<<<SEP>>>最近ちょっと食事が重なり気味やね。";
+  else if (mentalCount >= 2) trendComment = "<<<SEP>>>ここ数日、少し気疲れがたまり気味かもしれんね。";
+  else if (activeCount >= 2) trendComment = "<<<SEP>>>このところよう動けとるね。";
+
+  finalText += trendComment;
+}
 
 if (normalizedType === "food") {
   const userId = event.source.userId || "unknown";
