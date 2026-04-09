@@ -812,21 +812,6 @@ async function getLineImageContent(messageId) {
   return Buffer.from(arrayBuffer);
 }
 
-async function getLineImageContent(messageId) {
-  const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
-    headers: {
-      Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error(`LINE image fetch failed: ${res.status}`);
-  }
-
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
-}
-
 /* =========================
    Webhook
 ========================= */
@@ -844,6 +829,8 @@ app.post("/webhook", async (req, res) => {
 
   for (const event of body.events) {
     if (event.type !== "message") continue;
+
+
    if (event.message.type === "image") {
 　const messageId = event.message.id;
 　const mode = getMode(event.source.userId);
@@ -920,8 +907,13 @@ const aiRes = await client.chat.completions.create({
   ]
 });
 
+const userId = event.source.userId || "unknown";
+
 const aiText =
-rememberUserInfo(userId, userText);
+  typeof aiRes.choices[0].message.content === "string"
+    ? aiRes.choices[0].message.content
+    : "写真ありがとう";
+
 // 状態タグ保存（最小版）
 if (!globalThis.userStateTags) {
   globalThis.userStateTags = new Map();
@@ -937,9 +929,6 @@ if (tagText.match(/運動|歩いた|ジム/)) tags.push("active");
 if (tagText.match(/ストレス|不安|イライラ/)) tags.push("mental");
 
 globalThis.userStateTags.set(userId, tags.slice(-20));
-  typeof aiRes.choices[0].message.content === "string"
-    ? aiRes.choices[0].message.content
-    : "写真ありがとう";
 
 let finalText = aiText;
 // 最近の傾向を一言だけ足す
