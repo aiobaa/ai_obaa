@@ -1027,7 +1027,6 @@ const aiRes = await client.chat.completions.create({
   ]
 });
 
-const userId = event.source.userId || "unknown";
 
 const aiText =
   typeof aiRes.choices[0].message.content === "string"
