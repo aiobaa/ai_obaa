@@ -952,7 +952,7 @@ if (normalizedType === "food") {
 
     globalThis.userDailyFoodLog.set(key, current);
 
-    finalText += `<<<SEP>>>今日ここまでで ${current.totalKcal}kcal、塩分 ${current.totalSalt.toFixed(1)}g くらいやね。`;
+    finalText += `<<<SEP>>>今日ここまでで ${current.totalKcal}kcal、塩分 ${current.totalSalt.toFixed(1)}g くらいやね。目標は1800kcalくらいとして、あと ${Math.max(0, 1800 - current.totalKcal)}kcalくらいやね。`;
   } else {
     finalText += "<<<SEP>>>今回はカロリーと塩分を読み取れんかった。";
   }
