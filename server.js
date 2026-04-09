@@ -905,9 +905,61 @@ const aiText =
     ? aiRes.choices[0].message.content
     : "写真ありがとう";
 
-const parts = splitReply(aiText);
-await reply(event.replyToken, buildMessages(parts));
+let finalText = aiText;
 
+if (normalizedType === "food") {
+  const userId = event.source.userId || "unknown";
+
+  const calorieMatch = aiText.match(/推定カロリー[:：]\s*(?:約)?\s*(\d+)(?:\s*[〜~\-]\s*(\d+))?\s*kcal/i);
+  const saltMatch = aiText.match(/推定塩分[:：]\s*(?:約)?\s*(\d+(?:\.\d+)?)(?:\s*[〜~\-]\s*(\d+(?:\.\d+)?))?\s*g/i);
+
+  let kcal = null;
+  let salt = null;
+
+  if (calorieMatch) {
+    kcal = calorieMatch[2]
+      ? Math.round((Number(calorieMatch[1]) + Number(calorieMatch[2])) / 2)
+      : Number(calorieMatch[1]);
+  }
+
+  if (saltMatch) {
+    salt = saltMatch[2]
+      ? (Number(saltMatch[1]) + Number(saltMatch[2])) / 2
+      : Number(saltMatch[1]);
+  }
+
+  if (!globalThis.userDailyFoodLog) {
+    globalThis.userDailyFoodLog = new Map();
+  }
+
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+  const key = `${userId}_${today}`;
+
+  const current = globalThis.userDailyFoodLog.get(key) || {
+    totalKcal: 0,
+    totalSalt: 0,
+    items: []
+  };
+
+  if (kcal !== null || salt !== null) {
+    current.totalKcal += kcal || 0;
+    current.totalSalt += salt || 0;
+    current.items.push({
+      kcal: kcal || 0,
+      salt: salt || 0,
+      text: aiText.slice(0, 120)
+    });
+
+    globalThis.userDailyFoodLog.set(key, current);
+
+    finalText += `<<<SEP>>>今日ここまでで ${current.totalKcal}kcal、塩分 ${current.totalSalt.toFixed(1)}g くらいやね。`;
+  } else {
+    finalText += "<<<SEP>>>今回はカロリーと塩分を読み取れんかった。";
+  }
+}
+
+const parts = splitReply(finalText);
+await reply(event.replyToken, buildMessages(parts));
 continue;
 
 }
