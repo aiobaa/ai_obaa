@@ -856,7 +856,10 @@ const classifierRes = await client.chat.completions.create({
     {
       role: "user",
       content: [
-        { type: "text", text: "この画像を次のどれか1語で分類して: medical, food, scenery, document, other" },
+        {
+          type: "text",
+          text: "この画像を次のどれか1語で分類して: face, medical, food, scenery, document, other"
+        },
         { type: "image_url", image_url: { url: dataUrl } }
       ]
     }
@@ -866,23 +869,51 @@ const classifierRes = await client.chat.completions.create({
 const imageType =
   typeof classifierRes.choices[0].message.content === "string"
     ? classifierRes.choices[0].message.content.trim().toLowerCase()
-    : "other";  
+    : "other";
 
-const typeMap = ["medical", "food", "scenery", "document"];
-const normalizedType = typeMap.find(t => imageType.includes(t)) || "other";
+const typeMap = ["face", "medical", "food", "scenery", "document"];
+const normalizedType = typeMap.find((t) => imageType.includes(t)) || "other";
 
 console.log("normalizedType:", normalizedType);
-
 console.log("imageType:", imageType);
 
 const finalPrompt =
-  normalizedType === "medical"
- ? systemPrompt + " 医療画像では、まず画像内の内容を具体的に説明する。薬剤や処方箋が含まれている場合は、読める薬の名前をできるだけ挙げ、それぞれについて用途を1行ずつ説明する。その後、全体としての意味や注意点を簡単にまとめる。見た目の感想だけで終わらせない。説明は必ず含める。短くまとめる必要はない。薬剤や処方内容が読める場合は、薬ごとに名前・用途・注意点をそれぞれ説明すること。内部では通常のChatGPTと同じレベルで分析してから答えること。"
-   : normalizedType === "food"
-   ? systemPrompt + " 食べ物や飲み物の画像の場合は、必ず以下の形式で返す。\n\n料理: ○○\n推定カロリー: 約○○kcal または ○○〜○○kcal\n推定塩分: 約○g または ○〜○g\n栄養: 糖質・脂質・タンパク質のうち多いものを具体的に説明\nコメント: 健康やカロリーコントロールの具体的なセルフケアを1〜2個\n\nカロリーと塩分は必ず数値で書き、省略しない。内容はChatGPTと同レベルでよいが、推定で構わないので現実的な値を出す。"
+  normalizedType === "face"
+    ? (
+        systemPrompt +
+        " 顔写真では、まず表情・顔つき・雰囲気を自然に描写する。" +
+        " そのうえで、感情の傾向をやわらかく推定する。" +
+        " さらに、疲れ・眠気・緊張・元気さなど、見た目からわかる体調の印象があれば1つだけ短く触れる。" +
+        " 断定はしない。『〜そう』『〜気味に見える』という言い方にする。" +
+        " 病名診断はしない。薬・処方・検査の話には結びつけない。" +
+        " 返答は自然な会話文で、2〜4文に収める。"
+      )
+    : normalizedType === "medical"
+    ? (
+        systemPrompt +
+        " 医療画像では、まず画像内の内容を具体的に説明する。" +
+        " 薬剤や処方箋が含まれている場合は、読める薬の名前をできるだけ挙げ、それぞれについて用途を1行ずつ説明する。" +
+        " その後、全体としての意味や注意点を簡単にまとめる。" +
+        " 見た目の感想だけで終わらせない。"
+      )
+    : normalizedType === "food"
+    ? (
+        systemPrompt +
+        " 食べ物や飲み物の画像の場合は、必ず以下の形式で返す。\n\n" +
+        "料理: ○○\n" +
+        "推定カロリー: 約○○kcal または ○○〜○○kcal\n" +
+        "推定塩分: 約○g または ○〜○g\n" +
+        "栄養: 糖質・脂質・タンパク質のうち多いものを具体的に説明\n" +
+        "コメント: 健康やカロリーコントロールの具体的なセルフケアを1〜2個\n\n" +
+        "カロリーと塩分は必ず数値で書き、省略しない。"
+      )
     : normalizedType === "document"
-   ? systemPrompt + " 検査結果・処方箋・薬剤情報などの文書画像では、まず画像内の文字をできるだけ読んで、薬剤名や検査項目名を具体的に拾う。処方箋や薬の画像なら、最初に読めた薬の名前を自然な文で1つずつ挙げ、そのあと各薬について主な用途を短く説明する。読みに自信がない薬は『〜に見える』と添えてよいが、名前をなるべく出す。一般論だけで済ませない。最後に、全体としての注意点を1つだけ短く添える。"
-    : systemPrompt;
+    ? (
+        systemPrompt +
+        " 検査結果・処方箋・薬剤情報などの文書画像では、まず画像内の文字をできるだけ読んで、薬剤名や検査項目名を具体的に拾う。" +
+        " 一般論だけで済ませない。"
+      )
+    : systemPrompt + " 画像の内容を自然に説明し、必要なら一言だけやさしくコメントする。";
 
 const aiRes = await client.chat.completions.create({
   model: "gpt-4.1-mini",
