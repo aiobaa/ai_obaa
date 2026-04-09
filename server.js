@@ -707,12 +707,14 @@ function pickContext(history, current) {
 
 async function generate(userId, text) {
   const mode = getMode(userId);
-  const persona =
-    mode === "obaachan"
-      ? OBAA_WORLD.obaachan
-      : mode === "babaa"
-      ? OBAA_WORLD.babaa
-      : OBAA_WORLD.obaa;
+ const persona =
+  mode === "obaachan"
+    ? OBAA_WORLD.obaachan
+    : mode === "babaa"
+    ? OBAA_WORLD.babaa
+    : mode === "ikemen"
+    ? OBAA_WORLD.ikemen
+    : OBAA_WORLD.obaa;
 
   const history = getHistory(userId);
   const context = pickContext(history, text);
@@ -737,6 +739,14 @@ const modeRule =
 ・最後に行動を命令形で出す
 `
     : `
+: mode === "ikemen"
+? `
+【人格ルール：イケメン】
+・必ず最後は「愛してるよ」で終わる
+・標準語のみ
+・甘さは強め、でも短く
+・1文は必ず印象的な一言にする
+`
 【人格ルール：おばあ】
 ・状況を整理する
 ・原因を短く説明する
