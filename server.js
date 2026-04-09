@@ -911,11 +911,8 @@ const userId = event.source.userId;
 const mode = userModes.get(userId) || "obaa";
 
 // 🔥ここから追加（イケメン画像専用）
-if (event.message.type === "image" && mode === "ikemen") {
-  const replyText = generateKizaComment();
-  await reply(event.replyToken, buildMessages([replyText]));
-  continue;
-}
+
+
 // 🔥ここまで
 
 
@@ -1134,6 +1131,8 @@ continue;
 }
 
     const text = event.message.text.trim();
+    
+    const mode = getMode(userId);
 
     const detectedName = extractName(text);
     if (detectedName) {
