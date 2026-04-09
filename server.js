@@ -591,7 +591,16 @@ function splitReply(text) {
     parts = text.split(/(?<=[。！？])/).map((s) => s.trim()).filter(Boolean);
   }
 
-  return parts.slice(0, 5);
+  if (parts.length <= 5) return parts;
+
+  const merged = [];
+  const chunkSize = Math.ceil(parts.length / 5);
+
+  for (let i = 0; i < parts.length; i += chunkSize) {
+    merged.push(parts.slice(i, i + chunkSize).join(""));
+  }
+
+  return merged;
 }
 
 function buildMessages(parts) {
