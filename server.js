@@ -676,6 +676,7 @@ function buildMessages(parts) {
                 { type: "action", action: { type: "message", label: "おばあちゃん", text: "おばあちゃん" } },
                 { type: "action", action: { type: "message", label: "おばあ", text: "おばあ" } },
                 { type: "action", action: { type: "message", label: "ばばあ", text: "ばばあ" } },
+　　　　　　　　　　{ type: "action", action: { type: "message", label: "イケメン", text: "イケメン" } },
               ],
             },
           }
