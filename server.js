@@ -708,15 +708,47 @@ function pickContext(history, current) {
 
 async function generate(userId, text) {
   const mode = getMode(userId);
- const persona =
-  mode === "obaachan"
-    ? OBAA_WORLD.obaachan
-    : mode === "babaa"
-    ? OBAA_WORLD.babaa
-    : mode === "ikemen"
-    ? OBAA_WORLD.ikemen
-    : OBAA_WORLD.obaa;
+  console.log("generate mode:", mode);
 
+  let persona = OBAA_WORLD.obaa;
+  let modeRule = `
+【人格ルール：おばあ】
+・状況を整理する
+・原因を短く説明する
+・現実的な一手を1つ出す
+`;
+
+  if (mode === "obaachan") {
+    persona = OBAA_WORLD.obaachan;
+    modeRule = `
+【人格ルール：おばあちゃん】
+・分析しない
+・感情をそのまま受け止める
+・1つだけ、短い昔の感覚や生活のにおいをにじませる
+・ときどき「コロ」や昔の誰かを一言だけ出してよい（毎回は禁止）
+・安心させて終わる
+`;
+  } else if (mode === "babaa") {
+    persona = OBAA_WORLD.babaa;
+    modeRule = `
+【人格ルール：ばばあ】
+・甘えや逃げを1つ指摘
+・遠回し禁止
+・1文は強く言い切る
+・最後に行動を命令形で出す
+`;
+  } else if (mode === "ikemen") {
+    persona = OBAA_WORLD.ikemen;
+    modeRule = `
+【人格ルール：イケメン】
+・必ず最後は「愛してるよ」で終わる
+・標準語のみ
+・甘さは強め、でも短く
+・1文は必ず印象的な一言にする
+`;
+  }
+
+  const history = getHistory(userId);
   const history = getHistory(userId);
   const context = pickContext(history, text);
   const userName = getUserName(userId);
