@@ -877,7 +877,7 @@ const aiRes = await client.chat.completions.create({
   {
     role: "user",
     content: [
-      { type: "text", text: userText},
+      { type: "text", text: `${userText}\nこの画像について、写っている内容を具体的に説明してください。画像内の文字や情報をできるだけ正確に読み取り、重要な内容を省略せず説明してください。薬や処方箋が含まれる場合は、通常のChatGPTと同じレベルで、薬の名前・用途・注意点をそれぞれ説明してください。短くまとめる必要はありません。` },
       { type: "image_url", image_url: { url: dataUrl } }
     ]
   }
