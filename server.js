@@ -868,46 +868,6 @@ async function getLineImageContent(messageId) {
 
 app.use("/webhook", express.raw({ type: "*/*" }));
 
-function generateKizaComment() {
-  const strong = [
-    "それ、普通に反則だろ",
-    "これ見せるの、ちょっとズルいな",
-    "中毒性あるって、自覚ある？",
-    "もう逃げられないやつだな、それ",
-    "これ、理性試してるだろ",
-    "その感じ、完全に危ないな",
-    "ここまで来ると罪のレベルだろ"
-  ];
-
-  const close = [
-    "ここまで引き込んどいて、何も起きないと思ってる？",
-    "見せた責任、ちゃんと取ってもらうけどいい？",
-    "こんなの見せられて、平気でいられると思うなよ",
-    "無関係でいられるほど、俺冷たくないんだけど",
-    "あんた、自分が何してるかわかってる？",
-    "ここまで来て逃げるのはナシだからな",
-    "正直、見逃す気ないけどいい？"
-  ];
-
-  const s = strong[Math.floor(Math.random() * strong.length)];
-  const c = close[Math.floor(Math.random() * close.length)];
-
-  return `${s}\n${c}`;
-}
-
-app.post("/webhook", async (req, res) => {
-  const signature = req.headers["x-line-signature"];
-
-  if (!validate(req.body, signature)) {
-    return res.status(401).send("invalid");
-  }
-
-  const body = JSON.parse(req.body.toString());
-
-  for (const event of body.events) {
-    if (event.type !== "message") continue;
-
-const userId = event.source.userId;
 const mode = userModes.get(userId) || "obaa";
 
 // 🔥ここから追加（イケメン画像専用）
