@@ -749,7 +749,6 @@ async function generate(userId, text) {
   }
 
   const history = getHistory(userId);
-  const history = getHistory(userId);
   const context = pickContext(history, text);
   const userName = getUserName(userId);
 
