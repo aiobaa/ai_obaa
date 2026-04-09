@@ -894,10 +894,6 @@ await reply(event.replyToken, buildMessages(parts));
 
 continue;
 
-const parts = splitReply(aiText);
-await reply(event.replyToken, buildMessages(parts));
-
-  continue;
 }
 
     const text = event.message.text.trim();
