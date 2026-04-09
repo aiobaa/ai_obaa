@@ -876,20 +876,28 @@ const finalPrompt =
     : normalizedType === "document"
    ? systemPrompt + " 検査結果・処方箋・薬剤情報などの文書画像では、まず画像内の文字をできるだけ読んで、薬剤名や検査項目名を具体的に拾う。処方箋や薬の画像なら、最初に読めた薬の名前を自然な文で1つずつ挙げ、そのあと各薬について主な用途を短く説明する。読みに自信がない薬は『〜に見える』と添えてよいが、名前をなるべく出す。一般論だけで済ませない。最後に、全体としての注意点を1つだけ短く添える。"
     : systemPrompt;
+
 const aiRes = await client.chat.completions.create({
   model: "gpt-4.1-mini",
- messages: [
-  {
-    role: "system",
-    content: finalPrompt
-  },
-  {
-    role: "user",
-    content: [
-   { type: "text", text: `${userText}\nこの画像について、まず全体を自然に理解した上で説明してください。文字情報が含まれる場合は、その内容もできるだけ読み取って説明してください。薬や処方箋が含まれる場合は、薬の名前・用途・注意点をそれぞれ説明してください。見た目の感想だけで終わらせず、画像内の実際の情報を優先してください。必要に応じて詳しく説明して構いません。` },
-      { type: "image_url", image_url: { url: dataUrl, detail: "high" } }
-  }
-]
+  messages: [
+    {
+      role: "system",
+      content: finalPrompt
+    },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: `${userText}\nこの画像について、まず全体を自然に理解した上で説明してください。文字情報が含まれる場合は、その内容もできるだけ読み取って説明してください。薬や処方箋が含まれる場合は、薬の名前・用途・注意点をそれぞれ説明してください。見た目の感想だけで終わらせず、画像内の実際の情報を優先してください。必要に応じて詳しく説明して構いません。`
+        },
+        {
+          type: "image_url",
+          image_url: { url: dataUrl, detail: "high" }
+        }
+      ]
+    }
+  ]
 });
 
 const aiText =
