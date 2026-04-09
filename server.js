@@ -889,7 +889,8 @@ const aiText =
     ? aiRes.choices[0].message.content
     : "写真ありがとう";
 
-await reply(event.replyToken, buildMessages([aiText]));
+const parts = splitReply(aiText);
+await reply(event.replyToken, buildMessages(parts));
 
 continue;
 
