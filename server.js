@@ -232,8 +232,28 @@ const OBAA_WORLD = {
    ユーティリティ
 ========================= */
 
-function getQuestPool() {
-  return [
+function getQuestPool(userId) {
+
+const tags = globalThis.userStateTags?.get(userId) || [];
+const recent = tags.slice(-5);
+
+if (recent.includes("fatigue")) {
+  return ["今日のクエスト：1分だけ目を閉じて休んでみんね"];
+}
+if (recent.includes("sleep")) {
+  return ["今日のクエスト：今日は少し早めに横になってみんね"];
+}
+if (recent.includes("diet_high")) {
+  return ["今日のクエスト：次の食事は少し軽めにしてみんね"];
+}
+if (recent.includes("mental")) {
+  return ["今日のクエスト：深呼吸を3回だけやってみんね"];
+}
+if (recent.includes("active")) {
+  return ["今日のクエスト：軽くストレッチして整えてみんね"];
+}  
+
+return [
     "今日のクエスト：水を一口飲む",
     "今日のクエスト：コップ1杯水を飲む",
     "今日のクエスト：顔を洗う",
